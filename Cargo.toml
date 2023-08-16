@@ -16,4 +16,3 @@ default-members = ["yices2-sys", "yices2"]
 
 [workspace.dependencies]
 yices2-sys = { path = "yices2-sys" }
-yices2 = { path = "yices2" }

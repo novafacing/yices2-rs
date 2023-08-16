@@ -23,6 +23,15 @@ tar = "0.4.40"
 xz = "0.1.0"
 
 [features]
+# By default, use clang to compile libpoly, libgmp, libcudd, and libyices
 default = ["clang"]
+# Use the generated bindings instead of the included bindings. This can be useful
+# when updating to use a newer version of yices2, but should otherwise not be required
+# as the yices2 version is locked to the vendored code.
+use-generated = []
+# Compile libpoly, libgmp, libcudd, and libyices with clang. A CC/CXX environment variable
+# defined at build time takes precedence over this option.
 clang = []
+# Compile libpoly, libgmp, libcudd, and libyices with gcc. A CC/CXX environment variable
+# defined at build time takes precedence over this option.
 gcc = []

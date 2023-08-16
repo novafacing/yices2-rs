@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, ensure, Result};
-use bindgen::{Builder, CargoCallbacks};
+use bindgen::{Builder, CargoCallbacks, EnumVariation, RustTarget};
 use flate2::read::GzDecoder;
 use std::{
     env::var,
@@ -396,7 +396,35 @@ fn generate_bindings() -> Result<()> {
                 .display()
                 .to_string(),
         )
+        .default_enum_style(EnumVariation::Rust {
+            non_exhaustive: false,
+        })
+        .enable_function_attribute_detection()
+        .disable_nested_struct_naming()
+        .layout_tests(true)
+        .impl_debug(true)
+        .impl_partialeq(true)
+        .derive_copy(true)
+        .derive_debug(true)
+        .derive_default(true)
+        .derive_hash(true)
+        .derive_partialord(true)
+        .derive_ord(true)
+        .derive_partialeq(true)
+        .derive_eq(true)
+        .anon_fields_prefix("__bindgen_anon_")
         .parse_callbacks(Box::new(CargoCallbacks))
+        .generate_comments(true)
+        .generate_cstr(true)
+        .rust_target(RustTarget::Stable_1_68)
+        .size_t_is_usize(true)
+        .translate_enum_integer_types(true)
+        .c_naming(false)
+        .explicit_padding(true)
+        .vtable_generation(true)
+        .sort_semantically(true)
+        .wrap_unsafe_ops(true)
+        .clang_arg("-fparse-all-comments")
         .generate()?;
 
     bindings.write_to_file(out_dir()?.join("bindings.rs"))?;
@@ -437,6 +465,7 @@ fn main() -> Result<()> {
         prefix()?.join("lib").display()
     );
     println!("cargo:rustc-link-lib=static=yices");
+    println!("cargo:rustc-link-lib=static=gmp");
 
     generate_bindings()?;
 
