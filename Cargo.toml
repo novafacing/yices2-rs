@@ -1,19 +1,19 @@
-[package]
-name = "yices2-rs"
-version = "0.1.0"
+[workspace.package]
+authors = ["Rowan Hart <rowanbhart@gmail.com>"]
+description = "Rust bindings for Yices 2 SMT solver"
 edition = "2021"
+homepage = "https://yices.csl.sri.com"
+keywords = ["smt", "smt-solver", "yices"]
+license = "GPL"
+publish = true
+readme = "README.md"
+repository = "https://github.com/novafacing/yices2-rs"
+version = "0.1.0"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = ["yices2-sys", "yices2"]
+default-members = ["yices2-sys", "yices2"]
 
-[dependencies]
-
-[build-dependencies]
-anyhow = "1.0.72"
-flate2 = "1.0.27"
-tar = "0.4.40"
-xz = "0.1.0"
-
-[features]
-default = ["clang"]
-clang = []
-gcc = []
+[workspace.dependencies]
+yices2-sys = { path = "yices2-sys" }
+yices2 = { path = "yices2" }
