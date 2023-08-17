@@ -2225,7 +2225,7 @@ mod term {
     impl BitVectorSignedLessThanAtom {
         pub fn new(left: Term, right: Term) -> Result<Self> {
             Ok(Self {
-                term: yices! { yices_bvsle_atom(left.into(), right.into()) },
+                term: yices! { yices_bvslt_atom(left.into(), right.into()) },
             })
         }
     }
