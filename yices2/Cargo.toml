@@ -1,5 +1,6 @@
 [package]
 name = "yices2"
+description = "Rust bindings to the Yices 2 SMT solver"
 authors.workspace = true
 edition.workspace = true
 homepage.workspace = true
