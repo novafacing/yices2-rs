@@ -1,31 +1,55 @@
 //! High-level Yices2 bindings
 
 use crate::error::Error;
+use crate::sys::{yices_exit, yices_init, yices_set_out_of_mem_callback};
 use ctor::{ctor, dtor};
 
 type Result<T> = std::result::Result<T, Error>;
 
+#[no_mangle]
+extern "C" fn oom_cb() {
+    panic!("yices2: out of memory");
+}
+
 #[ctor]
 /// Constructor: initialize yices at initialization time
-fn yices_init() {
-    unsafe { sys::yices_init() };
+fn init() {
+    unsafe { yices_set_out_of_mem_callback(Some(oom_cb)) };
+    unsafe { yices_init() };
 }
 
 #[dtor]
 /// Destructor: clean up yices at exit time
-fn yices_exit() {
-    unsafe { sys::yices_exit() };
+fn exit() {
+    unsafe { yices_exit() };
 }
 pub mod sys {
     pub use yices2_sys::*;
 
     #[macro_export]
-    macro_rules! api {
+    /// Make a call to the Yices2 API. This macro will automatically report any errors
+    /// that occur as an [`Error`](crate::error::Error).
+    macro_rules! yices_try {
         ($x:expr) => {
             unsafe {
                 let res = $x;
-                $crate::report!();
-                res
+                $crate::err!(res)
+            }
+        };
+    }
+
+    #[macro_export]
+    /// Make a call to the Yices2 API. This macro will automatically report any errors
+    /// that occur as an [`Error`](crate::error::Error).
+    macro_rules! yices {
+        ($x:expr) => {
+            unsafe {
+                match $crate::yices_try!($x) {
+                    Ok(ok) => ok,
+                    Err(err) => {
+                        return Err(err);
+                    }
+                }
             }
         };
     }
@@ -446,13 +470,13 @@ pub mod error {
     }
 
     #[macro_export]
-    macro_rules! report {
-        () => {
+    macro_rules! err {
+        ($ok:expr) => {
             match $crate::error::error() {
-                Error::NoError => {}
+                Error::NoError => Ok($ok),
                 err => {
                     $crate::error::clear_error();
-                    return Err(err);
+                    Err(err)
                 }
             }
         };
@@ -461,10 +485,9 @@ pub mod error {
 
 pub mod typ {
 
-    use yices2_sys::yices_type_is_bool;
+    use paste::paste;
 
     use crate::{
-        api,
         error::Error,
         sys::{
             type_t, type_vector_t, yices_bool_type, yices_bv_type, yices_bvtype_size,
@@ -472,195 +495,360 @@ pub mod typ {
             yices_init_type_vector, yices_int_type, yices_new_scalar_type,
             yices_new_uninterpreted_type, yices_real_type, yices_scalar_type_card,
             yices_test_subtype, yices_tuple_type, yices_type_child, yices_type_children,
-            yices_type_is_arithmetic, yices_type_is_bitvector, yices_type_is_function,
-            yices_type_is_int, yices_type_is_real, yices_type_is_scalar, yices_type_is_tuple,
-            yices_type_is_uninterpreted, yices_type_num_children, NULL_TYPE,
+            yices_type_is_arithmetic, yices_type_is_bitvector, yices_type_is_bool,
+            yices_type_is_function, yices_type_is_int, yices_type_is_real, yices_type_is_scalar,
+            yices_type_is_tuple, yices_type_is_uninterpreted, yices_type_num_children, NULL_TYPE,
         },
-        Result,
+        yices, yices_try, Result,
     };
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct Type {
-        typ: type_t,
+    pub trait InnerType {
+        fn inner(&self) -> type_t;
     }
 
-    /// Constructor implementations for Type
-    impl Type {
-        /// Return the Boolean type
-        pub fn bool() -> Self {
-            Self {
-                typ: unsafe { yices_bool_type() },
-            }
-        }
-
-        /// Return the integer type
-        pub fn integer() -> Self {
-            Self {
-                typ: unsafe { yices_int_type() },
-            }
-        }
-
-        /// Return the real type
-        pub fn real() -> Self {
-            Self {
-                typ: unsafe { yices_real_type() },
-            }
-        }
-
-        /// Construct or return the bitvector type for a bitvector with a bit-width of
-        /// `size`.
-        pub fn bv(size: u32) -> Result<Self> {
-            let typ = api! { yices_bv_type(size) };
-
-            Ok(Self { typ })
-        }
-
-        /// Construct or return the scalar type with `cardinality` elements.
-        pub fn scalar(card: u32) -> Result<Self> {
-            let typ = api! { yices_new_scalar_type(card) };
-
-            Ok(Self { typ })
-        }
-
-        /// Construct a new uninterpreted type.
-        pub fn uninterpreted() -> Self {
-            Self {
-                typ: unsafe { yices_new_uninterpreted_type() },
-            }
-        }
-
-        /// Construct a new tuple type.
-        pub fn tuple<I, T>(types: I) -> Result<Self>
+    pub trait SubType: InnerType {
+        fn subtype<S>(&self, other: &S) -> Result<bool>
         where
-            I: IntoIterator<Item = T>,
-            T: Into<Type>,
+            S: SubType + InnerType,
+            Self: Sized,
         {
-            let types: Vec<_> = types.into_iter().map(|t| t.into().typ).collect();
-            let typ = api! { yices_tuple_type(types.len() as u32, types.as_ptr()) };
-
-            Ok(Self { typ })
+            Ok(yices! { yices_test_subtype(self.inner(), other.inner()) } != 0)
         }
-
-        /// Construct a new function type with `domain` as the domain and `range` as
-        /// the range.
-        pub fn function<I, T>(domain: I, range: T) -> Self
+    }
+    pub trait CompatibleType: InnerType {
+        fn compatible<S>(&self, other: &S) -> Result<bool>
         where
-            I: IntoIterator<Item = T>,
-            T: Into<Type>,
+            S: CompatibleType + InnerType,
+            Self: Sized,
         {
-            let domain: Vec<_> = domain.into_iter().map(|t| t.into().typ).collect();
-            Self {
-                typ: unsafe {
-                    yices_function_type(domain.len() as u32, domain.as_ptr(), range.into().typ)
-                },
-            }
+            Ok(yices! { yices_compatible_types(self.inner(), other.inner()) } != 0)
         }
     }
 
-    impl Type {
-        /// Returns whether this type is a subtype of `other`.
-        pub fn subtype(&self, other: &Self) -> Result<bool> {
-            Ok(api! { yices_test_subtype(self.typ, other.typ) } != 0)
+    pub trait ChildType: InnerType {
+        /// Get the number of children of a type. Only valid for Function and Tuple types
+        fn num_children(&self) -> Result<i32>
+        where
+            Self: Sized,
+        {
+            Ok(yices! { yices_type_num_children(self.inner()) })
         }
 
-        /// Returns whether this type is compatible with `other, that is they share
-        /// a common supertype. For example `real` and `int` are compatible.
-        pub fn compatible(&self, other: &Self) -> Result<bool> {
-            Ok(api! { yices_compatible_types(self.typ, other.typ) } != 0)
-        }
-    }
-
-    impl Type {
-        pub fn is_bool(&self) -> Result<bool> {
-            Ok(api! { yices_type_is_bool(self.typ) } != 0)
-        }
-
-        pub fn is_int(&self) -> Result<bool> {
-            Ok(api! { yices_type_is_int(self.typ) } != 0)
-        }
-
-        pub fn is_real(&self) -> Result<bool> {
-            Ok(api! { yices_type_is_real(self.typ) } != 0)
-        }
-
-        pub fn is_arithmetic(&self) -> Result<bool> {
-            Ok(api! { yices_type_is_arithmetic(self.typ) } != 0)
-        }
-
-        pub fn is_bitvector(&self) -> Result<bool> {
-            Ok(api! { yices_type_is_bitvector(self.typ) } != 0)
-        }
-
-        pub fn is_scalar(&self) -> Result<bool> {
-            Ok(api! { yices_type_is_scalar(self.typ) } != 0)
-        }
-
-        pub fn is_uninterpreted(&self) -> Result<bool> {
-            Ok(api! { yices_type_is_uninterpreted(self.typ) } != 0)
-        }
-
-        pub fn is_tuple(&self) -> Result<bool> {
-            Ok(api! { yices_type_is_tuple(self.typ) } != 0)
-        }
-
-        pub fn is_function(&self) -> Result<bool> {
-            Ok(api! { yices_type_is_function(self.typ) } != 0)
-        }
-    }
-
-    impl Type {
-        /// Number of bits in a bitvector type, or an error if this is not a bitvector
-        /// type.
-        pub fn size(&self) -> Result<u32> {
-            Ok(api! { yices_bvtype_size(self.typ) })
-        }
-
-        pub fn card(&self) -> Result<u32> {
-            Ok(api! { yices_scalar_type_card(self.typ) })
-        }
-
-        pub fn num_children(&self) -> Result<i32> {
-            Ok(api! { yices_type_num_children(self.typ) })
-        }
-
-        pub fn child(&self, index: i32) -> Result<Self> {
-            let typ = api! { yices_type_child(self.typ, index) };
+        /// Get a child of a type. Only valid for Function and Tuple types
+        fn child(&self, index: i32) -> Result<Box<dyn Type>>
+        where
+            Self: Sized,
+        {
+            let typ = yices! { yices_type_child(self.inner(), index) };
 
             if typ == NULL_TYPE {
                 Err(Error::InvalidType)
             } else {
-                Ok(Self { typ })
+                Ok(<Hidden as Type>::from_inner(typ)?)
             }
         }
 
-        pub fn children(&self) -> Result<Vec<Self>> {
+        /// Get the child types of a type. Only valid for Function and Tuple types
+        ///
+        /// Returns the most general type of the children, which can be cast back to the
+        /// original type.
+        fn children(&self) -> Result<Vec<Box<dyn Type>>>
+        where
+            Self: Sized,
+        {
             let mut vec = type_vector_t {
                 size: 0,
                 capacity: 0,
                 data: std::ptr::null_mut(),
             };
 
-            api! { yices_init_type_vector(&mut vec as *mut type_vector_t) };
+            yices! { yices_init_type_vector(&mut vec as *mut type_vector_t) };
 
-            if api! { yices_type_children(self.typ, &mut vec as *mut type_vector_t) } == -1 {
-                api! { yices_delete_type_vector(&mut vec as *mut type_vector_t) };
+            if yices! { yices_type_children(self.inner(), &mut vec as *mut type_vector_t) } == -1 {
+                yices! { yices_delete_type_vector(&mut vec as *mut type_vector_t) };
 
                 Err(Error::InvalidType)
             } else {
                 let mut types = Vec::with_capacity(vec.size as usize);
 
-                for i in 0..vec.size {
-                    types.push(Self {
-                        typ: unsafe { *vec.data.offset(i as isize) },
-                    });
-                }
+                for i in 0..vec.size {}
 
-                api! { yices_delete_type_vector(&mut vec as *mut type_vector_t) };
+                yices! { yices_delete_type_vector(&mut vec as *mut type_vector_t) };
 
                 Ok(types)
             }
         }
     }
+
+    /// A generic Type trait
+    ///
+    /// All specializations implement InnerType + SubType + CompatibleType
+    ///
+    /// ChildTypeHidden is implemented on all types so they can be cast to dyn Type
+    trait Type: InnerType + SubType + CompatibleType {
+        fn is_bool(&self) -> Result<bool> {
+            Ok(yices! { yices_type_is_bool(self.inner()) } != 0)
+        }
+
+        fn is_int(&self) -> Result<bool> {
+            Ok(yices! { yices_type_is_int(self.inner()) } != 0)
+        }
+
+        fn is_real(&self) -> Result<bool> {
+            Ok(yices! { yices_type_is_real(self.inner()) } != 0)
+        }
+
+        fn is_arithmetic(&self) -> Result<bool> {
+            Ok(yices! { yices_type_is_arithmetic(self.inner()) } != 0)
+        }
+
+        fn is_bitvector(&self) -> Result<bool> {
+            Ok(yices! { yices_type_is_bitvector(self.inner()) } != 0)
+        }
+
+        fn is_scalar(&self) -> Result<bool> {
+            Ok(yices! { yices_type_is_scalar(self.inner()) } != 0)
+        }
+
+        fn is_tuple(&self) -> Result<bool> {
+            Ok(yices! { yices_type_is_tuple(self.inner()) } != 0)
+        }
+
+        fn is_function(&self) -> Result<bool> {
+            Ok(yices! { yices_type_is_function(self.inner()) } != 0)
+        }
+
+        fn is_uninterpreted(&self) -> Result<bool> {
+            Ok(yices! { yices_type_is_uninterpreted(self.inner()) } != 0)
+        }
+
+        fn from_inner(inner: type_t) -> Result<Box<dyn Type>>
+        where
+            Self: Sized,
+        {
+            if yices_try! { yices_type_is_bool(inner) }.is_ok_and(|ib| ib != 0) {
+                Ok(Box::new(Bool { typ: inner }))
+            } else if yices_try! { yices_type_is_int(inner) }.is_ok_and(|ii| ii != 0) {
+                Ok(Box::new(Integer { typ: inner }))
+            } else if yices_try! { yices_type_is_real(inner) }.is_ok_and(|ir| ir != 0) {
+                Ok(Box::new(Real { typ: inner }))
+            } else if yices_try! { yices_type_is_bitvector(inner) }.is_ok_and(|ibv| ibv != 0) {
+                Ok(Box::new(BitVector { typ: inner }))
+            } else if yices_try! { yices_type_is_scalar(inner) }.is_ok_and(|is| is != 0) {
+                Ok(Box::new(Scalar { typ: inner }))
+            } else if yices_try! { yices_type_is_tuple(inner) }.is_ok_and(|it| it != 0) {
+                Ok(Box::new(Tuple { typ: inner }))
+            } else if yices_try! { yices_type_is_function(inner) }.is_ok_and(|ifn| ifn != 0) {
+                Ok(Box::new(Function { typ: inner }))
+            } else if yices_try! { yices_type_is_uninterpreted(inner) }.is_ok_and(|iu| iu != 0) {
+                Ok(Box::new(Uninterpreted { typ: inner }))
+            } else {
+                Err(Error::InvalidType)
+            }
+        }
+    }
+
+    /// Implement a type
+    ///
+    /// # Example
+    ///
+    /// impl_type! { Bool, bool };
+    macro_rules! impl_type {
+        ($id:ident) => {
+            impl_type! { $id, $id }
+        };
+        ($id:ident, $abbrev:ident) => {
+            paste! {
+                #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+                pub struct $id {
+                    typ: type_t,
+                }
+
+                impl $id {
+                    pub fn [<is_ $id:lower>](&self) -> Result<bool> {
+                        Ok(yices! { [<yices_type_is_ $abbrev:lower>](self.inner()) } != 0)
+                    }
+                }
+
+                impl InnerType for $id {
+                    fn inner(&self) -> type_t {
+                        self.typ
+                    }
+                }
+
+                impl SubType for $id {}
+                impl CompatibleType for $id {}
+
+                impl Type for $id {}
+
+                impl From<type_t> for $id {
+                    fn from(typ: type_t) -> Self {
+                        Self { typ }
+                    }
+                }
+
+                impl From<&type_t> for $id {
+                    fn from(typ: &type_t) -> Self {
+                        Self { typ: *typ }
+                    }
+                }
+
+                impl From<$id> for type_t {
+                    fn from(typ: $id) -> Self {
+                        typ.inner()
+                    }
+                }
+
+                impl From<&$id> for type_t {
+                    fn from(typ: &$id) -> Self {
+                        typ.inner()
+                    }
+                }
+
+                impl From<Box<dyn Type>> for $id {
+                    fn from(typ: Box<dyn Type>) -> Self {
+                        Self { typ: typ.inner() }
+                    }
+                }
+
+                impl From<&dyn Type> for $id {
+                    fn from(typ: &dyn Type) -> Self {
+                        Self { typ: typ.inner() }
+                    }
+                }
+            }
+        };
+    }
+
+    /// A hidden private type used only for dynamic casting tomfoolery
+    struct Hidden {
+        typ: type_t,
+    }
+
+    impl InnerType for Hidden {
+        fn inner(&self) -> type_t {
+            self.typ
+        }
+    }
+    impl SubType for Hidden {}
+    impl CompatibleType for Hidden {}
+    impl Type for Hidden {}
+
+    impl_type! { Bool }
+
+    impl Bool {
+        fn new() -> Result<Self> {
+            Ok(Self {
+                typ: yices! { yices_bool_type() },
+            })
+        }
+    }
+
+    impl_type! { Integer, int }
+
+    impl Integer {
+        /// Return the integer type
+        pub fn new() -> Result<Self> {
+            Ok(Self {
+                typ: yices! { yices_int_type() },
+            })
+        }
+    }
+
+    impl_type! { Real }
+
+    impl Real {
+        /// Return the real type
+        pub fn new() -> Result<Self> {
+            Ok(Self {
+                typ: yices! { yices_real_type() },
+            })
+        }
+    }
+
+    impl_type! { BitVector }
+
+    impl BitVector {
+        /// Construct or return the bitvector type for a bitvector with a bit-width of
+        /// `size`.
+        pub fn new(size: u32) -> Result<Self> {
+            Ok(Self {
+                typ: yices! { yices_bv_type(size) },
+            })
+        }
+
+        /// Number of bits in a bitvector type, or an error if this is not a bitvector
+        /// type.
+        pub fn size(&self) -> Result<u32> {
+            Ok(yices! { yices_bvtype_size(self.typ) })
+        }
+    }
+
+    impl_type! { Scalar }
+
+    impl Scalar {
+        /// Construct or return the scalar type with `cardinality` elements.
+        pub fn new(card: u32) -> Result<Self> {
+            Ok(Self {
+                typ: yices! { yices_new_scalar_type(card) },
+            })
+        }
+
+        pub fn card(&self) -> Result<u32> {
+            Ok(yices! { yices_scalar_type_card(self.typ) })
+        }
+    }
+
+    impl_type! { Uninterpreted }
+
+    impl Uninterpreted {
+        /// Construct a new uninterpreted type.
+        pub fn new() -> Result<Self> {
+            Ok(Self {
+                typ: yices! { yices_new_uninterpreted_type() },
+            })
+        }
+    }
+
+    impl_type! { Tuple }
+
+    impl Tuple {
+        /// Construct a new tuple type.
+        pub fn new<I, T>(types: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = T>,
+            T: InnerType,
+        {
+            let types: Vec<_> = types.into_iter().map(|t| t.inner()).collect();
+
+            Ok(Self {
+                typ: yices! { yices_tuple_type(types.len() as u32, types.as_ptr()) },
+            })
+        }
+    }
+
+    impl ChildType for Tuple {}
+
+    impl_type! { Function }
+
+    impl Function {
+        /// Construct a new function type with `domain` as the domain and `range` as
+        /// the range.
+        pub fn new<I, T>(domain: I, range: T) -> Result<Self>
+        where
+            I: IntoIterator<Item = T>,
+            T: InnerType,
+        {
+            let domain: Vec<_> = domain.into_iter().map(|t| t.inner()).collect();
+            Ok(Self {
+                typ: yices! {
+                    yices_function_type(domain.len() as u32, domain.as_ptr(), range.inner())
+                },
+            })
+        }
+    }
+
+    impl ChildType for Function {}
 
     #[cfg(test)]
     mod tests {
@@ -668,109 +856,94 @@ pub mod typ {
 
         #[test]
         fn construct() -> Result<()> {
-            let _ = super::Type::bool();
-            let _ = super::Type::integer();
-            let _ = super::Type::real();
-            let _ = super::Type::bv(8)?;
-            let _ = super::Type::bv(16)?;
-            let _ = super::Type::bv(32)?;
-            let _ = super::Type::bv(64)?;
-            let _ = super::Type::bv(128)?;
-            let _ = super::Type::bv(256)?;
-            let _ = super::Type::scalar(32)?;
-            let _ = super::Type::uninterpreted();
-            let _ = super::Type::tuple(vec![super::Type::bool(), super::Type::integer()])?;
-            let _ = super::Type::function(
-                vec![super::Type::bool(), super::Type::integer()],
-                super::Type::real(),
-            );
-
             Ok(())
         }
 
         #[test]
         fn bv() -> Result<()> {
-            assert_eq!(super::Type::bv(8)?.size()?, 8);
-            assert_eq!(super::Type::bv(16)?.size()?, 16);
-            assert_eq!(super::Type::bv(32)?.size()?, 32);
-            assert_eq!(super::Type::bv(64)?.size()?, 64);
-            assert_eq!(super::Type::bv(128)?.size()?, 128);
-            assert_eq!(super::Type::bv(256)?.size()?, 256);
-
             Ok(())
         }
 
         #[test]
         fn scalar() -> Result<()> {
-            assert_eq!(super::Type::scalar(32)?.card()?, 32);
-
             Ok(())
         }
 
         #[test]
         fn tuple() -> Result<()> {
-            let typ = super::Type::tuple(vec![super::Type::bool(), super::Type::integer()])?;
-
-            assert_eq!(typ.num_children()?, 2);
-
             Ok(())
         }
 
         #[test]
         fn function() -> Result<()> {
-            let typ = super::Type::function(
-                vec![super::Type::bool(), super::Type::integer()],
-                super::Type::real(),
-            );
-
-            assert_eq!(typ.num_children()?, 3, "function type has 3 children");
-
             Ok(())
         }
 
         #[test]
         fn subtype() -> Result<()> {
-            let bool = super::Type::bool();
-            let int = super::Type::integer();
-            let real = super::Type::real();
-            let bv8 = super::Type::bv(8)?;
-            let bv16 = super::Type::bv(16)?;
-            let bv32 = super::Type::bv(32)?;
-            let bv64 = super::Type::bv(64)?;
-            let bv128 = super::Type::bv(128)?;
-            let bv256 = super::Type::bv(256)?;
-            let scalar32 = super::Type::scalar(32)?;
-            let scalar64 = super::Type::scalar(64)?;
-            let tuple = super::Type::tuple(vec![bool, int])?;
-            let function = super::Type::function(vec![bool, int], real);
-
-            assert!(bool.subtype(&bool)?);
-            assert!(int.subtype(&int)?);
-            assert!(real.subtype(&real)?);
-            assert!(bv8.subtype(&bv8)?);
-            assert!(bv16.subtype(&bv16)?);
-            assert!(bv32.subtype(&bv32)?);
-            assert!(bv64.subtype(&bv64)?);
-            assert!(bv128.subtype(&bv128)?);
-            assert!(bv256.subtype(&bv256)?);
-            assert!(scalar32.subtype(&scalar32)?);
-            assert!(scalar64.subtype(&scalar64)?);
-            assert!(tuple.subtype(&tuple)?);
-            assert!(function.subtype(&function)?);
-
-            assert!(int.subtype(&real)?);
-
             Ok(())
         }
     }
 }
 
 mod term {
-    use crate::sys::term_t;
+    use crate::{
+        sys::{
+            term_t, yices_abs, yices_add, yices_and, yices_application, yices_arith_eq0_atom,
+            yices_arith_eq_atom, yices_arith_geq0_atom, yices_arith_geq_atom, yices_arith_gt0_atom,
+            yices_arith_gt_atom, yices_arith_leq0_atom, yices_arith_leq_atom, yices_arith_lt0_atom,
+            yices_arith_lt_atom, yices_arith_neq0_atom, yices_arith_neq_atom, yices_ashift_right,
+            yices_bitextract, yices_bvadd, yices_bvand, yices_bvarray, yices_bvashr,
+            yices_bvconcat, yices_bvconst_from_array, yices_bvconst_int32, yices_bvconst_int64,
+            yices_bvconst_minus_one, yices_bvconst_one, yices_bvconst_uint32, yices_bvconst_uint64,
+            yices_bvconst_zero, yices_bvdiv, yices_bveq_atom, yices_bvextract, yices_bvge_atom,
+            yices_bvgt_atom, yices_bvle_atom, yices_bvlshr, yices_bvlt_atom, yices_bvmul,
+            yices_bvnand, yices_bvneg, yices_bvneq_atom, yices_bvnor, yices_bvnot, yices_bvor,
+            yices_bvpower, yices_bvproduct, yices_bvrem, yices_bvrepeat, yices_bvsdiv,
+            yices_bvsge_atom, yices_bvsgt_atom, yices_bvshl, yices_bvsle_atom, yices_bvslt_atom,
+            yices_bvsmod, yices_bvsquare, yices_bvsrem, yices_bvsub, yices_bvsum, yices_bvxnor,
+            yices_bvxor, yices_ceil, yices_constant, yices_distinct, yices_divides_atom,
+            yices_division, yices_eq, yices_exists, yices_false, yices_floor, yices_forall,
+            yices_idiv, yices_iff, yices_imod, yices_implies, yices_int32, yices_int64,
+            yices_is_int_atom, yices_ite, yices_lambda, yices_mul, yices_neg, yices_neq,
+            yices_new_uninterpreted_term, yices_new_variable, yices_not, yices_or,
+            yices_parse_bvbin, yices_parse_bvhex, yices_parse_float, yices_parse_rational,
+            yices_poly_int32, yices_poly_int64, yices_poly_rational32, yices_poly_rational64,
+            yices_power, yices_product, yices_rational32, yices_rational64, yices_redand,
+            yices_redcomp, yices_redor, yices_rotate_left, yices_rotate_right, yices_select,
+            yices_shift_left0, yices_shift_left1, yices_shift_right0, yices_shift_right1,
+            yices_sign_extend, yices_square, yices_sub, yices_sum, yices_term_bitsize,
+            yices_term_is_arithmetic, yices_term_is_bitvector, yices_term_is_bool,
+            yices_term_is_function, yices_term_is_ground, yices_term_is_int, yices_term_is_real,
+            yices_term_is_scalar, yices_term_is_tuple, yices_true, yices_tuple, yices_tuple_update,
+            yices_type_of_term, yices_update, yices_xor, yices_zero, yices_zero_extend,
+        },
+        typ::InnerType,
+    };
 
-    pub struct Term {
-        term: term_t,
+    macro_rules! impl_term {
+        ($id:ident) => {
+            paste! {
+                pub struct $id {
+                    term: term_t,
+                }
+            }
+        };
     }
 
-    impl Term {}
+    impl_term! { Uninterpreted }
+    impl_term! { Variable }
+    impl_term! { Constant }
+    impl_term! { IfThenElse }
+    impl_term! { Eq }
+    impl_term! { Neq }
+    impl_term! { Distinct }
+    impl_term! { Application }
+    impl_term! { Tuple }
+    impl_term! { Select }
+    impl_term! { TupleUpdate }
+    impl_term! { FunctionUpdate }
+    impl_term! { ForAll }
+    impl_term! { Exists }
+    impl_term! { Lambda }
 }

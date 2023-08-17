@@ -15,5 +15,6 @@ version.workspace = true
 
 [dependencies]
 ctor = "0.2.4"
+paste = "1.0.14"
 thiserror = "1.0.46"
 yices2-sys.workspace = true
