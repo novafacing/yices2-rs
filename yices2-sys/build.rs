@@ -329,7 +329,7 @@ where
                 "CFLAGS",
                 format!("-I{}", prefix()?.join("include").display()),
             )
-            .arg("--enable-thread-safety")
+            .arg("--enable-mcsat")
             .arg(format!(
                 "--with-static-gmp={}",
                 prefix()?.join("lib").join("libgmp.a").display()
