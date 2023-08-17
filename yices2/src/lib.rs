@@ -40,7 +40,8 @@ pub mod sys {
 
     #[macro_export]
     /// Make a call to the Yices2 API. This macro will automatically report any errors
-    /// that occur as an [`Error`](crate::error::Error).
+    /// that occur as an [`Error`](crate::error::Error), similar to [`yices_try!`](crate::yices_try!)
+    /// but returns immediately if there is an error.
     macro_rules! yices {
         ($x:expr) => {
             unsafe {
@@ -473,7 +474,7 @@ pub mod error {
     macro_rules! err {
         ($ok:expr) => {
             match $crate::error::error() {
-                Error::NoError => Ok($ok),
+                $crate::error::Error::NoError => Ok($ok),
                 err => {
                     $crate::error::clear_error();
                     Err(err)
@@ -495,9 +496,9 @@ pub mod typ {
             yices_init_type_vector, yices_int_type, yices_new_scalar_type,
             yices_new_uninterpreted_type, yices_real_type, yices_scalar_type_card,
             yices_test_subtype, yices_tuple_type, yices_type_child, yices_type_children,
-            yices_type_is_arithmetic, yices_type_is_bitvector, yices_type_is_bool,
-            yices_type_is_function, yices_type_is_int, yices_type_is_real, yices_type_is_scalar,
-            yices_type_is_tuple, yices_type_is_uninterpreted, yices_type_num_children, NULL_TYPE,
+            yices_type_is_bitvector, yices_type_is_bool, yices_type_is_function, yices_type_is_int,
+            yices_type_is_real, yices_type_is_scalar, yices_type_is_tuple,
+            yices_type_is_uninterpreted, yices_type_num_children, NULL_TYPE,
         },
         yices, yices_try, Result,
     };
@@ -535,7 +536,7 @@ pub mod typ {
         }
 
         /// Get a child of a type. Only valid for Function and Tuple types
-        fn child(&self, index: i32) -> Result<Box<dyn Type>>
+        fn child(&self, index: i32) -> Result<Type>
         where
             Self: Sized,
         {
@@ -544,7 +545,7 @@ pub mod typ {
             if typ == NULL_TYPE {
                 Err(Error::InvalidType)
             } else {
-                Ok(<Hidden as Type>::from_inner(typ)?)
+                Type::try_from(typ)
             }
         }
 
@@ -552,7 +553,7 @@ pub mod typ {
         ///
         /// Returns the most general type of the children, which can be cast back to the
         /// original type.
-        fn children(&self) -> Result<Vec<Box<dyn Type>>>
+        fn children(&self) -> Result<Vec<Type>>
         where
             Self: Sized,
         {
@@ -571,79 +572,20 @@ pub mod typ {
             } else {
                 let mut types = Vec::with_capacity(vec.size as usize);
 
-                for i in 0..vec.size {}
+                (0..vec.size).try_for_each(|i| {
+                    let typ = unsafe { *vec.data.offset(i as isize) };
+
+                    if typ == NULL_TYPE {
+                        Err(Error::InvalidType)
+                    } else {
+                        types.push(Type::try_from(typ)?);
+                        Ok(())
+                    }
+                })?;
 
                 yices! { yices_delete_type_vector(&mut vec as *mut type_vector_t) };
 
                 Ok(types)
-            }
-        }
-    }
-
-    /// A generic Type trait
-    ///
-    /// All specializations implement InnerType + SubType + CompatibleType
-    ///
-    /// ChildTypeHidden is implemented on all types so they can be cast to dyn Type
-    trait Type: InnerType + SubType + CompatibleType {
-        fn is_bool(&self) -> Result<bool> {
-            Ok(yices! { yices_type_is_bool(self.inner()) } != 0)
-        }
-
-        fn is_int(&self) -> Result<bool> {
-            Ok(yices! { yices_type_is_int(self.inner()) } != 0)
-        }
-
-        fn is_real(&self) -> Result<bool> {
-            Ok(yices! { yices_type_is_real(self.inner()) } != 0)
-        }
-
-        fn is_arithmetic(&self) -> Result<bool> {
-            Ok(yices! { yices_type_is_arithmetic(self.inner()) } != 0)
-        }
-
-        fn is_bitvector(&self) -> Result<bool> {
-            Ok(yices! { yices_type_is_bitvector(self.inner()) } != 0)
-        }
-
-        fn is_scalar(&self) -> Result<bool> {
-            Ok(yices! { yices_type_is_scalar(self.inner()) } != 0)
-        }
-
-        fn is_tuple(&self) -> Result<bool> {
-            Ok(yices! { yices_type_is_tuple(self.inner()) } != 0)
-        }
-
-        fn is_function(&self) -> Result<bool> {
-            Ok(yices! { yices_type_is_function(self.inner()) } != 0)
-        }
-
-        fn is_uninterpreted(&self) -> Result<bool> {
-            Ok(yices! { yices_type_is_uninterpreted(self.inner()) } != 0)
-        }
-
-        fn from_inner(inner: type_t) -> Result<Box<dyn Type>>
-        where
-            Self: Sized,
-        {
-            if yices_try! { yices_type_is_bool(inner) }.is_ok_and(|ib| ib != 0) {
-                Ok(Box::new(Bool { typ: inner }))
-            } else if yices_try! { yices_type_is_int(inner) }.is_ok_and(|ii| ii != 0) {
-                Ok(Box::new(Integer { typ: inner }))
-            } else if yices_try! { yices_type_is_real(inner) }.is_ok_and(|ir| ir != 0) {
-                Ok(Box::new(Real { typ: inner }))
-            } else if yices_try! { yices_type_is_bitvector(inner) }.is_ok_and(|ibv| ibv != 0) {
-                Ok(Box::new(BitVector { typ: inner }))
-            } else if yices_try! { yices_type_is_scalar(inner) }.is_ok_and(|is| is != 0) {
-                Ok(Box::new(Scalar { typ: inner }))
-            } else if yices_try! { yices_type_is_tuple(inner) }.is_ok_and(|it| it != 0) {
-                Ok(Box::new(Tuple { typ: inner }))
-            } else if yices_try! { yices_type_is_function(inner) }.is_ok_and(|ifn| ifn != 0) {
-                Ok(Box::new(Function { typ: inner }))
-            } else if yices_try! { yices_type_is_uninterpreted(inner) }.is_ok_and(|iu| iu != 0) {
-                Ok(Box::new(Uninterpreted { typ: inner }))
-            } else {
-                Err(Error::InvalidType)
             }
         }
     }
@@ -679,8 +621,6 @@ pub mod typ {
                 impl SubType for $id {}
                 impl CompatibleType for $id {}
 
-                impl Type for $id {}
-
                 impl From<type_t> for $id {
                     fn from(typ: type_t) -> Self {
                         Self { typ }
@@ -705,34 +645,36 @@ pub mod typ {
                     }
                 }
 
-                impl From<Box<dyn Type>> for $id {
-                    fn from(typ: Box<dyn Type>) -> Self {
-                        Self { typ: typ.inner() }
+                impl TryFrom<Type> for $id {
+                    type Error = Error;
+
+                    fn try_from(typ: Type) -> Result<Self> {
+                        match typ {
+                            Type::$id(typ) => Ok(typ),
+                            _ => Err(Error::InvalidType),
+                        }
                     }
                 }
 
-                impl From<&dyn Type> for $id {
-                    fn from(typ: &dyn Type) -> Self {
-                        Self { typ: typ.inner() }
+                impl TryFrom<&Type> for $id {
+                    type Error = Error;
+
+                    fn try_from(typ: &Type) -> Result<Self> {
+                        match typ {
+                            Type::$id(typ) => Ok(*typ),
+                            _ => Err(Error::InvalidType),
+                        }
+                    }
+                }
+
+                impl From<$id> for Type {
+                    fn from(typ: $id) -> Self {
+                        Self::$id(typ)
                     }
                 }
             }
         };
     }
-
-    /// A hidden private type used only for dynamic casting tomfoolery
-    struct Hidden {
-        typ: type_t,
-    }
-
-    impl InnerType for Hidden {
-        fn inner(&self) -> type_t {
-            self.typ
-        }
-    }
-    impl SubType for Hidden {}
-    impl CompatibleType for Hidden {}
-    impl Type for Hidden {}
 
     impl_type! { Bool }
 
@@ -850,6 +792,58 @@ pub mod typ {
 
     impl ChildType for Function {}
 
+    pub enum Type {
+        Bool(Bool),
+        Integer(Integer),
+        Real(Real),
+        BitVector(BitVector),
+        Scalar(Scalar),
+        Uninterpreted(Uninterpreted),
+        Tuple(Tuple),
+        Function(Function),
+    }
+
+    impl TryFrom<type_t> for Type {
+        type Error = Error;
+
+        fn try_from(value: type_t) -> Result<Self> {
+            if yices_try! { yices_type_is_bool(value) }.is_ok_and(|b| b != 0) {
+                Ok(Type::Bool(Bool::from(value)))
+            } else if yices_try! { yices_type_is_int(value) }.is_ok_and(|b| b != 0) {
+                Ok(Type::Integer(Integer::from(value)))
+            } else if yices_try! { yices_type_is_real(value) }.is_ok_and(|b| b != 0) {
+                Ok(Type::Real(Real::from(value)))
+            } else if yices_try! { yices_type_is_bitvector(value) }.is_ok_and(|b| b != 0) {
+                Ok(Type::BitVector(BitVector::from(value)))
+            } else if yices_try! { yices_type_is_scalar(value) }.is_ok_and(|b| b != 0) {
+                Ok(Type::Scalar(Scalar::from(value)))
+            } else if yices_try! { yices_type_is_uninterpreted(value) }.is_ok_and(|b| b != 0) {
+                Ok(Type::Uninterpreted(Uninterpreted::from(value)))
+            } else if yices_try! { yices_type_is_tuple(value) }.is_ok_and(|b| b != 0) {
+                Ok(Type::Tuple(Tuple::from(value)))
+            } else if yices_try! { yices_type_is_function(value) }.is_ok_and(|b| b != 0) {
+                Ok(Type::Function(Function::from(value)))
+            } else {
+                Err(Error::InvalidType)
+            }
+        }
+    }
+
+    impl From<Type> for type_t {
+        fn from(value: Type) -> Self {
+            match value {
+                Type::Bool(typ) => typ.inner(),
+                Type::Integer(typ) => typ.inner(),
+                Type::Real(typ) => typ.inner(),
+                Type::BitVector(typ) => typ.inner(),
+                Type::Scalar(typ) => typ.inner(),
+                Type::Uninterpreted(typ) => typ.inner(),
+                Type::Tuple(typ) => typ.inner(),
+                Type::Function(typ) => typ.inner(),
+            }
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use crate::Result;
@@ -918,8 +912,15 @@ mod term {
             yices_term_is_scalar, yices_term_is_tuple, yices_true, yices_tuple, yices_tuple_update,
             yices_type_of_term, yices_update, yices_xor, yices_zero, yices_zero_extend,
         },
-        typ::InnerType,
+        typ::Type,
+        yices, Result,
     };
+    use itertools::multiunzip;
+    use paste::paste;
+
+    pub trait InnerTerm {
+        fn inner(&self) -> term_t;
+    }
 
     macro_rules! impl_term {
         ($id:ident) => {
@@ -927,23 +928,1581 @@ mod term {
                 pub struct $id {
                     term: term_t,
                 }
+
+                impl InnerTerm for $id {
+                    fn inner(&self) -> term_t {
+                        self.term
+                    }
+                }
             }
         };
     }
 
     impl_term! { Uninterpreted }
+
+    impl Uninterpreted {
+        pub fn new(typ: Type) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_new_uninterpreted_term(typ.into()) },
+            })
+        }
+    }
+
     impl_term! { Variable }
+
+    impl Variable {
+        pub fn new(typ: Type) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_new_variable(typ.into()) },
+            })
+        }
+    }
+
     impl_term! { Constant }
+
+    impl Constant {
+        /// typ must either be scalar or uninterpreted
+        pub fn new(typ: Type, index: i32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_constant(typ.into(), index) },
+            })
+        }
+    }
+
     impl_term! { IfThenElse }
-    impl_term! { Eq }
-    impl_term! { Neq }
+
+    impl IfThenElse {
+        pub fn new(cond: Term, then: Term, els: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_ite(cond.into(), then.into(), els.into()) },
+            })
+        }
+    }
+
+    impl_term! { Equal }
+
+    impl Equal {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_eq(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { NotEqual }
+
+    impl NotEqual {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_neq(left.into(), right.into()) },
+            })
+        }
+    }
+
     impl_term! { Distinct }
+
+    impl Distinct {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            // terms may be modified by this call
+            let mut terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_distinct(terms.len() as u32, terms.as_mut_ptr()) },
+            })
+        }
+    }
+
     impl_term! { Application }
+
+    impl Application {
+        pub fn new<I>(fun: Term, args: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = args.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_application(fun.into(), terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
     impl_term! { Tuple }
+
+    impl Tuple {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_tuple(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
     impl_term! { Select }
+
+    impl Select {
+        pub fn new(tuple: Term, index: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_select(index, tuple.into()) },
+            })
+        }
+    }
+
     impl_term! { TupleUpdate }
+
+    impl TupleUpdate {
+        pub fn new(tuple: Term, index: u32, value: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_tuple_update(tuple.into(), index, value.into()) },
+            })
+        }
+    }
+
     impl_term! { FunctionUpdate }
+
+    impl FunctionUpdate {
+        pub fn new<I>(fun: Term, args: I, value: Term) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms = args.into_iter().map(|t| t.into()).collect::<Vec<_>>();
+
+            Ok(Self {
+                term: yices! { yices_update(fun.into(), terms.len() as u32, terms.as_ptr(), value.into()) },
+            })
+        }
+    }
+
     impl_term! { ForAll }
+
+    impl ForAll {
+        pub fn new<I>(vars: I, body: Term) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let mut terms = vars.into_iter().map(|t| t.into()).collect::<Vec<_>>();
+
+            Ok(Self {
+                term: yices! { yices_forall(terms.len() as u32, terms.as_mut_ptr(), body.into()) },
+            })
+        }
+    }
+
     impl_term! { Exists }
+
+    impl Exists {
+        pub fn new<I>(vars: I, body: Term) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let mut terms = vars.into_iter().map(|t| t.into()).collect::<Vec<_>>();
+
+            Ok(Self {
+                term: yices! { yices_exists(terms.len() as u32, terms.as_mut_ptr(), body.into()) },
+            })
+        }
+    }
+
     impl_term! { Lambda }
+
+    impl Lambda {
+        pub fn new<I>(vars: I, body: Term) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms = vars.into_iter().map(|t| t.into()).collect::<Vec<_>>();
+
+            Ok(Self {
+                term: yices! { yices_lambda(terms.len() as u32, terms.as_ptr(), body.into()) },
+            })
+        }
+    }
+
+    impl_term! { True }
+
+    impl True {
+        pub fn new() -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_true() },
+            })
+        }
+    }
+
+    impl_term! { False }
+
+    impl False {
+        pub fn new() -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_false() },
+            })
+        }
+    }
+
+    impl_term! { Not }
+
+    impl Not {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_not(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { And }
+
+    impl And {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let mut terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_and(terms.len() as u32, terms.as_mut_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { Or }
+
+    impl Or {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let mut terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_or(terms.len() as u32, terms.as_mut_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { Xor }
+
+    impl Xor {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let mut terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_xor(terms.len() as u32, terms.as_mut_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { Iff }
+
+    impl Iff {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_iff(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { Implies }
+
+    impl Implies {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_implies(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { Zero }
+
+    impl Zero {
+        pub fn new() -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_zero() },
+            })
+        }
+    }
+
+    impl_term! { Int32 }
+
+    impl Int32 {
+        pub fn new(value: i32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_int32(value) },
+            })
+        }
+    }
+
+    impl_term! { Int64 }
+
+    impl Int64 {
+        pub fn new(value: i64) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_int64(value) },
+            })
+        }
+    }
+
+    impl_term! { Rational32 }
+
+    impl Rational32 {
+        pub fn new(num: i32, den: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_rational32(num, den) },
+            })
+        }
+    }
+
+    impl_term! { Rational64 }
+
+    impl Rational64 {
+        pub fn new(num: i64, den: u64) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_rational64(num, den) },
+            })
+        }
+    }
+
+    impl_term! { Add }
+
+    impl Add {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_add(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { Sub }
+
+    impl Sub {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_sub(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { Neg }
+
+    impl Neg {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_neg(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { Mul }
+
+    impl Mul {
+        pub fn new<I>(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_mul(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { Square }
+
+    impl Square {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_square(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { Power }
+
+    impl Power {
+        pub fn new(base: Term, exponent: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_power(base.into(), exponent) },
+            })
+        }
+    }
+
+    impl_term! { Division }
+
+    impl Division {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_division(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { Sum }
+
+    impl Sum {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_sum(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { Product }
+
+    impl Product {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_product(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { PolynomialInt32 }
+
+    impl PolynomialInt32 {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = (Term, i32)>,
+        {
+            let (terms, coefficients): (Vec<term_t>, Vec<i32>) = terms
+                .into_iter()
+                .map(|(term, coefficient)| {
+                    let term: term_t = term.into();
+                    (term, coefficient)
+                })
+                .unzip();
+
+            Ok(Self {
+                term: yices! { yices_poly_int32(terms.len() as u32, coefficients.as_ptr(), terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { PolynomialInt64 }
+
+    impl PolynomialInt64 {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = (Term, i64)>,
+        {
+            let (terms, coefficients): (Vec<term_t>, Vec<i64>) = terms
+                .into_iter()
+                .map(|(term, coefficient)| {
+                    let term: term_t = term.into();
+                    (term, coefficient)
+                })
+                .unzip();
+
+            Ok(Self {
+                term: yices! { yices_poly_int64(terms.len() as u32, coefficients.as_ptr(), terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { PolynomialRational32 }
+
+    impl PolynomialRational32 {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = (Term, i32, u32)>,
+        {
+            let (terms, numerators, denominators): (Vec<term_t>, Vec<i32>, Vec<u32>) =
+                multiunzip(terms.into_iter().map(|(term, numerator, denominator)| {
+                    let term: term_t = term.into();
+                    (term, numerator, denominator)
+                }));
+
+            Ok(Self {
+                term: yices! { yices_poly_rational32(terms.len() as u32, numerators.as_ptr(), denominators.as_ptr(), terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { PolynomialRational64 }
+
+    impl PolynomialRational64 {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = (Term, i64, u64)>,
+        {
+            let (terms, numerators, denominators): (Vec<term_t>, Vec<i64>, Vec<u64>) =
+                multiunzip(terms.into_iter().map(|(term, numerator, denominator)| {
+                    let term: term_t = term.into();
+                    (term, numerator, denominator)
+                }));
+
+            Ok(Self {
+                term: yices! { yices_poly_rational64(terms.len() as u32, numerators.as_ptr(), denominators.as_ptr(), terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { AbsoluteValue }
+
+    impl AbsoluteValue {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_abs(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { Floor }
+
+    impl Floor {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_floor(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { Ceiling }
+
+    impl Ceiling {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_ceil(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { IntegerDivision }
+
+    impl IntegerDivision {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_idiv(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { IntegerModulo }
+
+    impl IntegerModulo {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_imod(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticEqualAtom }
+
+    impl ArithmticEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_eq_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticNotEqualAtom }
+
+    impl ArithmticNotEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_neq_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticLessThanAtom }
+
+    impl ArithmticLessThanAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_lt_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticLessThanEqualAtom }
+
+    impl ArithmticLessThanEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_leq_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticGreaterThanAtom }
+
+    impl ArithmticGreaterThanAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_gt_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticGreaterThanEqualAtom }
+
+    impl ArithmticGreaterThanEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_geq_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticLessThanZeroAtom }
+
+    impl ArithmticLessThanZeroAtom {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_lt0_atom(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticLessThanEqualZeroAtom }
+
+    impl ArithmticLessThanEqualZeroAtom {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_leq0_atom(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticGreaterThanZeroAtom }
+
+    impl ArithmticGreaterThanZeroAtom {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_gt0_atom(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticGreaterThanEqualZeroAtom }
+
+    impl ArithmticGreaterThanEqualZeroAtom {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_geq0_atom(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticEqualZeroAtom }
+
+    impl ArithmticEqualZeroAtom {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_eq0_atom(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { ArithmticNotEqualZeroAtom }
+
+    impl ArithmticNotEqualZeroAtom {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_arith_neq0_atom(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { DividesAtom }
+
+    impl DividesAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_divides_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { IsIntegerAtom }
+
+    impl IsIntegerAtom {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_is_int_atom(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorConstantUInt32 }
+
+    impl BitVectorConstantUInt32 {
+        pub fn new(size: u32, value: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvconst_uint32(size, value) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorConstantInt32 }
+
+    impl BitVectorConstantInt32 {
+        pub fn new(size: u32, value: i32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvconst_int32(size, value) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorConstantUInt64 }
+
+    impl BitVectorConstantUInt64 {
+        pub fn new(size: u32, value: u64) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvconst_uint64(size, value) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorConstantInt64 }
+
+    impl BitVectorConstantInt64 {
+        pub fn new(size: u32, value: i64) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvconst_int64(size, value) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorConstantZero }
+
+    impl BitVectorConstantZero {
+        pub fn new(size: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvconst_zero(size) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorConstantOne }
+
+    impl BitVectorConstantOne {
+        pub fn new(size: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvconst_one(size) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorConstantMinusOne }
+
+    impl BitVectorConstantMinusOne {
+        pub fn new(size: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvconst_minus_one(size) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorConstantFromIntArray }
+
+    impl BitVectorConstantFromIntArray {
+        pub fn new<I>(values: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = i32>,
+        {
+            let values: Vec<_> = values.into_iter().collect();
+
+            Ok(Self {
+                term: yices! { yices_bvconst_from_array(values.len() as u32, values.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorAdd }
+
+    impl BitVectorAdd {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvadd(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSub }
+
+    impl BitVectorSub {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvsub(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorNeg }
+
+    impl BitVectorNeg {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvneg(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorMul }
+
+    impl BitVectorMul {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvmul(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSquare }
+
+    impl BitVectorSquare {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvsquare(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorPower }
+
+    impl BitVectorPower {
+        pub fn new(base: Term, exponent: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvpower(base.into(), exponent) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSum }
+
+    impl BitVectorSum {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_bvsum(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorProduct }
+
+    impl BitVectorProduct {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_bvproduct(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorDivision }
+
+    impl BitVectorDivision {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvdiv(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorRemainder }
+
+    impl BitVectorRemainder {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvrem(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSignedDivision }
+
+    impl BitVectorSignedDivision {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvsdiv(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSignedRemainder }
+
+    impl BitVectorSignedRemainder {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvsrem(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSignedModulo }
+
+    impl BitVectorSignedModulo {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvsmod(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorNot }
+
+    impl BitVectorNot {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvnot(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorAnd }
+
+    impl BitVectorAnd {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_bvand(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorOr }
+
+    impl BitVectorOr {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_bvor(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorXor }
+
+    impl BitVectorXor {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_bvxor(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorNAnd }
+
+    impl BitVectorNAnd {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvnand(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorNOr }
+
+    impl BitVectorNOr {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvnor(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorXNor }
+
+    impl BitVectorXNor {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvxnor(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorShiftLeftFill0 }
+
+    impl BitVectorShiftLeftFill0 {
+        pub fn new(left: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_shift_left0(left.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorShiftLeftFill1 }
+
+    impl BitVectorShiftLeftFill1 {
+        pub fn new(left: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_shift_left1(left.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorShiftRightFill0 }
+
+    impl BitVectorShiftRightFill0 {
+        pub fn new(left: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_shift_right0(left.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorShiftRightFill1 }
+
+    impl BitVectorShiftRightFill1 {
+        pub fn new(left: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_shift_right1(left.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorArithmeticShiftRightConstant }
+
+    impl BitVectorArithmeticShiftRightConstant {
+        pub fn new(left: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_ashift_right(left.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorRotateLeft }
+
+    impl BitVectorRotateLeft {
+        pub fn new(left: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_rotate_left(left.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorRotateRight }
+
+    impl BitVectorRotateRight {
+        pub fn new(left: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_rotate_right(left.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorShiftLeft }
+
+    impl BitVectorShiftLeft {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvshl(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorShiftRight }
+
+    impl BitVectorShiftRight {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvlshr(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorArithmeticShiftRight }
+
+    impl BitVectorArithmeticShiftRight {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvashr(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorExtract }
+
+    impl BitVectorExtract {
+        pub fn new(term: Term, lower: u32, upper: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvextract(term.into(), lower, upper) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorBitExtract }
+
+    impl BitVectorBitExtract {
+        pub fn new(term: Term, bit: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bitextract(term.into(), bit) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorConcatenate }
+
+    impl BitVectorConcatenate {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_bvconcat(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorRepeat }
+
+    impl BitVectorRepeat {
+        pub fn new(term: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvrepeat(term.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSignExtend }
+
+    impl BitVectorSignExtend {
+        pub fn new(term: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_sign_extend(term.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorZeroExtend }
+
+    impl BitVectorZeroExtend {
+        pub fn new(term: Term, n: u32) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_zero_extend(term.into(), n) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorReduceAnd }
+
+    impl BitVectorReduceAnd {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_redand(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorReduceOr }
+
+    impl BitVectorReduceOr {
+        pub fn new(term: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_redor(term.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorReduceEqual }
+
+    impl BitVectorReduceEqual {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_redcomp(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorArray }
+
+    impl BitVectorArray {
+        pub fn new<I>(terms: I) -> Result<Self>
+        where
+            I: IntoIterator<Item = Term>,
+        {
+            let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+
+            Ok(Self {
+                term: yices! { yices_bvarray(terms.len() as u32, terms.as_ptr()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorEqualAtom }
+
+    impl BitVectorEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bveq_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorNotEqualAtom }
+
+    impl BitVectorNotEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvneq_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorLessThanAtom }
+
+    impl BitVectorLessThanAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvlt_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorLessThanEqualAtom }
+
+    impl BitVectorLessThanEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvle_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorGreaterThanAtom }
+
+    impl BitVectorGreaterThanAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvgt_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorGreaterThanEqualAtom }
+
+    impl BitVectorGreaterThanEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvge_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSignedLessThanAtom }
+
+    impl BitVectorSignedLessThanAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvsle_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSignedLessThanEqualAtom }
+
+    impl BitVectorSignedLessThanEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvsle_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSignedGreaterThanAtom }
+
+    impl BitVectorSignedGreaterThanAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvsgt_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    impl_term! { BitVectorSignedGreaterThanEqualAtom }
+
+    impl BitVectorSignedGreaterThanEqualAtom {
+        pub fn new(left: Term, right: Term) -> Result<Self> {
+            Ok(Self {
+                term: yices! { yices_bvsge_atom(left.into(), right.into()) },
+            })
+        }
+    }
+
+    pub enum Term {
+        Uninterpreted(Uninterpreted),
+        Variable(Variable),
+        Constant(Constant),
+        IfThenElse(IfThenElse),
+        Equal(Equal),
+        NotEqual(NotEqual),
+        Distinct(Distinct),
+        Application(Application),
+        Tuple(Tuple),
+        Select(Select),
+        TupleUpdate(TupleUpdate),
+        FunctionUpdate(FunctionUpdate),
+        ForAll(ForAll),
+        Exists(Exists),
+        Lambda(Lambda),
+        True(True),
+        False(False),
+        Not(Not),
+        And(And),
+        Or(Or),
+        Xor(Xor),
+        Iff(Iff),
+        Implies(Implies),
+        Zero(Zero),
+        Int32(Int32),
+        Int64(Int64),
+        Rational32(Rational32),
+        Rational64(Rational64),
+        Add(Add),
+        Sub(Sub),
+        Neg(Neg),
+        Mul(Mul),
+        Square(Square),
+        Power(Power),
+        Division(Division),
+        Sum(Sum),
+        Product(Product),
+        PolynomialInt32(PolynomialInt32),
+        PolynomialInt64(PolynomialInt64),
+        PolynomialRational32(PolynomialRational32),
+        PolynomialRational64(PolynomialRational64),
+        AbsoluteValue(AbsoluteValue),
+        Floor(Floor),
+        Ceiling(Ceiling),
+        IntegerDivision(IntegerDivision),
+        IntegerModulo(IntegerModulo),
+        ArithmticEqualAtom(ArithmticEqualAtom),
+        ArithmticNotEqualAtom(ArithmticNotEqualAtom),
+        ArithmticLessThanAtom(ArithmticLessThanAtom),
+        ArithmticLessThanEqualAtom(ArithmticLessThanEqualAtom),
+        ArithmticGreaterThanAtom(ArithmticGreaterThanAtom),
+        ArithmticGreaterThanEqualAtom(ArithmticGreaterThanEqualAtom),
+        ArithmticLessThanZeroAtom(ArithmticLessThanZeroAtom),
+        ArithmticLessThanEqualZeroAtom(ArithmticLessThanEqualZeroAtom),
+        ArithmticGreaterThanZeroAtom(ArithmticGreaterThanZeroAtom),
+        ArithmticGreaterThanEqualZeroAtom(ArithmticGreaterThanEqualZeroAtom),
+        ArithmticEqualZeroAtom(ArithmticEqualZeroAtom),
+        ArithmticNotEqualZeroAtom(ArithmticNotEqualZeroAtom),
+        DividesAtom(DividesAtom),
+        IsIntegerAtom(IsIntegerAtom),
+        BitVectorConstantUInt32(BitVectorConstantUInt32),
+        BitVectorConstantInt32(BitVectorConstantInt32),
+        BitVectorConstantUInt64(BitVectorConstantUInt64),
+        BitVectorConstantInt64(BitVectorConstantInt64),
+        BitVectorConstantZero(BitVectorConstantZero),
+        BitVectorConstantOne(BitVectorConstantOne),
+        BitVectorConstantMinusOne(BitVectorConstantMinusOne),
+        BitVectorConstantFromIntArray(BitVectorConstantFromIntArray),
+        BitVectorAdd(BitVectorAdd),
+        BitVectorSub(BitVectorSub),
+        BitVectorNeg(BitVectorNeg),
+        BitVectorMul(BitVectorMul),
+        BitVectorSquare(BitVectorSquare),
+        BitVectorPower(BitVectorPower),
+        BitVectorSum(BitVectorSum),
+        BitVectorProduct(BitVectorProduct),
+        BitVectorDivision(BitVectorDivision),
+        BitVectorRemainder(BitVectorRemainder),
+        BitVectorSignedDivision(BitVectorSignedDivision),
+        BitVectorSignedRemainder(BitVectorSignedRemainder),
+        BitVectorSignedModulo(BitVectorSignedModulo),
+        BitVectorNot(BitVectorNot),
+        BitVectorAnd(BitVectorAnd),
+        BitVectorOr(BitVectorOr),
+        BitVectorXor(BitVectorXor),
+        BitVectorNAnd(BitVectorNAnd),
+        BitVectorNOr(BitVectorNOr),
+        BitVectorXNor(BitVectorXNor),
+        BitVectorShiftLeftFill0(BitVectorShiftLeftFill0),
+        BitVectorShiftLeftFill1(BitVectorShiftLeftFill1),
+        BitVectorShiftRightFill0(BitVectorShiftRightFill0),
+        BitVectorShiftRightFill1(BitVectorShiftRightFill1),
+        BitVectorArithmeticShiftRightConstant(BitVectorArithmeticShiftRightConstant),
+        BitVectorRotateLeft(BitVectorRotateLeft),
+        BitVectorRotateRight(BitVectorRotateRight),
+        BitVectorShiftLeft(BitVectorShiftLeft),
+        BitVectorShiftRight(BitVectorShiftRight),
+        BitVectorArithmeticShiftRight(BitVectorArithmeticShiftRight),
+        BitVectorExtract(BitVectorExtract),
+        BitVectorBitExtract(BitVectorBitExtract),
+        BitVectorConcatenate(BitVectorConcatenate),
+        BitVectorRepeat(BitVectorRepeat),
+        BitVectorSignExtend(BitVectorSignExtend),
+        BitVectorZeroExtend(BitVectorZeroExtend),
+        BitVectorReduceAnd(BitVectorReduceAnd),
+        BitVectorReduceOr(BitVectorReduceOr),
+        BitVectorReduceEqual(BitVectorReduceEqual),
+        BitVectorArray(BitVectorArray),
+        BitVectorEqualAtom(BitVectorEqualAtom),
+        BitVectorNotEqualAtom(BitVectorNotEqualAtom),
+        BitVectorLessThanAtom(BitVectorLessThanAtom),
+        BitVectorLessThanEqualAtom(BitVectorLessThanEqualAtom),
+        BitVectorGreaterThanAtom(BitVectorGreaterThanAtom),
+        BitVectorGreaterThanEqualAtom(BitVectorGreaterThanEqualAtom),
+        BitVectorSignedLessThanAtom(BitVectorSignedLessThanAtom),
+        BitVectorSignedLessThanEqualAtom(BitVectorSignedLessThanEqualAtom),
+        BitVectorSignedGreaterThanAtom(BitVectorSignedGreaterThanAtom),
+        BitVectorSignedGreaterThanEqualAtom(BitVectorSignedGreaterThanEqualAtom),
+    }
+
+    impl From<Term> for term_t {
+        fn from(value: Term) -> Self {
+            match value {
+                Term::Uninterpreted(term) => term.inner(),
+                Term::Variable(term) => term.inner(),
+                Term::Constant(term) => term.inner(),
+                Term::IfThenElse(term) => term.inner(),
+                Term::Equal(term) => term.inner(),
+                Term::NotEqual(term) => term.inner(),
+                Term::Distinct(term) => term.inner(),
+                Term::Application(term) => term.inner(),
+                Term::Tuple(term) => term.inner(),
+                Term::Select(term) => term.inner(),
+                Term::TupleUpdate(term) => term.inner(),
+                Term::FunctionUpdate(term) => term.inner(),
+                Term::ForAll(term) => term.inner(),
+                Term::Exists(term) => term.inner(),
+                Term::Lambda(term) => term.inner(),
+                Term::True(term) => term.inner(),
+                Term::False(term) => term.inner(),
+                Term::Not(term) => term.inner(),
+                Term::And(term) => term.inner(),
+                Term::Or(term) => term.inner(),
+                Term::Xor(term) => term.inner(),
+                Term::Iff(term) => term.inner(),
+                Term::Implies(term) => term.inner(),
+                Term::Zero(term) => term.inner(),
+                Term::Int32(term) => term.inner(),
+                Term::Int64(term) => term.inner(),
+                Term::Rational32(term) => term.inner(),
+                Term::Rational64(term) => term.inner(),
+                Term::Add(term) => term.inner(),
+                Term::Sub(term) => term.inner(),
+                Term::Neg(term) => term.inner(),
+                Term::Mul(term) => term.inner(),
+                Term::Square(term) => term.inner(),
+                Term::Power(term) => term.inner(),
+                Term::Division(term) => term.inner(),
+                Term::Sum(term) => term.inner(),
+                Term::Product(term) => term.inner(),
+                Term::PolynomialInt32(term) => term.inner(),
+                Term::PolynomialInt64(term) => term.inner(),
+                Term::PolynomialRational32(term) => term.inner(),
+                Term::PolynomialRational64(term) => term.inner(),
+                Term::AbsoluteValue(term) => term.inner(),
+                Term::Floor(term) => term.inner(),
+                Term::Ceiling(term) => term.inner(),
+                Term::IntegerDivision(term) => term.inner(),
+                Term::IntegerModulo(term) => term.inner(),
+                Term::ArithmticEqualAtom(term) => term.inner(),
+                Term::ArithmticNotEqualAtom(term) => term.inner(),
+                Term::ArithmticLessThanAtom(term) => term.inner(),
+                Term::ArithmticLessThanEqualAtom(term) => term.inner(),
+                Term::ArithmticGreaterThanAtom(term) => term.inner(),
+                Term::ArithmticGreaterThanEqualAtom(term) => term.inner(),
+                Term::ArithmticLessThanZeroAtom(term) => term.inner(),
+                Term::ArithmticLessThanEqualZeroAtom(term) => term.inner(),
+                Term::ArithmticGreaterThanZeroAtom(term) => term.inner(),
+                Term::ArithmticGreaterThanEqualZeroAtom(term) => term.inner(),
+                Term::ArithmticEqualZeroAtom(term) => term.inner(),
+                Term::ArithmticNotEqualZeroAtom(term) => term.inner(),
+                Term::DividesAtom(term) => term.inner(),
+                Term::IsIntegerAtom(term) => term.inner(),
+                Term::BitVectorConstantUInt32(term) => term.inner(),
+                Term::BitVectorConstantInt32(term) => term.inner(),
+                Term::BitVectorConstantUInt64(term) => term.inner(),
+                Term::BitVectorConstantInt64(term) => term.inner(),
+                Term::BitVectorConstantZero(term) => term.inner(),
+                Term::BitVectorConstantOne(term) => term.inner(),
+                Term::BitVectorConstantMinusOne(term) => term.inner(),
+                Term::BitVectorConstantFromIntArray(term) => term.inner(),
+                Term::BitVectorAdd(term) => term.inner(),
+                Term::BitVectorSub(term) => term.inner(),
+                Term::BitVectorNeg(term) => term.inner(),
+                Term::BitVectorMul(term) => term.inner(),
+                Term::BitVectorSquare(term) => term.inner(),
+                Term::BitVectorPower(term) => term.inner(),
+                Term::BitVectorSum(term) => term.inner(),
+                Term::BitVectorProduct(term) => term.inner(),
+                Term::BitVectorDivision(term) => term.inner(),
+                Term::BitVectorRemainder(term) => term.inner(),
+                Term::BitVectorSignedDivision(term) => term.inner(),
+                Term::BitVectorSignedRemainder(term) => term.inner(),
+                Term::BitVectorSignedModulo(term) => term.inner(),
+                Term::BitVectorNot(term) => term.inner(),
+                Term::BitVectorAnd(term) => term.inner(),
+                Term::BitVectorOr(term) => term.inner(),
+                Term::BitVectorXor(term) => term.inner(),
+                Term::BitVectorNAnd(term) => term.inner(),
+                Term::BitVectorNOr(term) => term.inner(),
+                Term::BitVectorXNor(term) => term.inner(),
+                Term::BitVectorShiftLeftFill0(term) => term.inner(),
+                Term::BitVectorShiftLeftFill1(term) => term.inner(),
+                Term::BitVectorShiftRightFill0(term) => term.inner(),
+                Term::BitVectorShiftRightFill1(term) => term.inner(),
+                Term::BitVectorArithmeticShiftRightConstant(term) => term.inner(),
+                Term::BitVectorRotateLeft(term) => term.inner(),
+                Term::BitVectorRotateRight(term) => term.inner(),
+                Term::BitVectorShiftLeft(term) => term.inner(),
+                Term::BitVectorShiftRight(term) => term.inner(),
+                Term::BitVectorArithmeticShiftRight(term) => term.inner(),
+                Term::BitVectorExtract(term) => term.inner(),
+                Term::BitVectorBitExtract(term) => term.inner(),
+                Term::BitVectorConcatenate(term) => term.inner(),
+                Term::BitVectorRepeat(term) => term.inner(),
+                Term::BitVectorSignExtend(term) => term.inner(),
+                Term::BitVectorZeroExtend(term) => term.inner(),
+                Term::BitVectorReduceAnd(term) => term.inner(),
+                Term::BitVectorReduceOr(term) => term.inner(),
+                Term::BitVectorReduceEqual(term) => term.inner(),
+                Term::BitVectorArray(term) => term.inner(),
+                Term::BitVectorEqualAtom(term) => term.inner(),
+                Term::BitVectorNotEqualAtom(term) => term.inner(),
+                Term::BitVectorLessThanAtom(term) => term.inner(),
+                Term::BitVectorLessThanEqualAtom(term) => term.inner(),
+                Term::BitVectorGreaterThanAtom(term) => term.inner(),
+                Term::BitVectorGreaterThanEqualAtom(term) => term.inner(),
+                Term::BitVectorSignedLessThanAtom(term) => term.inner(),
+                Term::BitVectorSignedLessThanEqualAtom(term) => term.inner(),
+                Term::BitVectorSignedGreaterThanAtom(term) => term.inner(),
+                Term::BitVectorSignedGreaterThanEqualAtom(term) => term.inner(),
+            }
+        }
+    }
 }
