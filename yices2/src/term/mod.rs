@@ -746,9 +746,9 @@ impl IntegerModulo {
     }
 }
 
-impl_term! { ArithmticEqualAtom }
+impl_term! { ArithmeticEqualAtom }
 
-impl ArithmticEqualAtom {
+impl ArithmeticEqualAtom {
     pub fn new(left: Term, right: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_eq_atom(left.into(), right.into()) },
@@ -756,9 +756,9 @@ impl ArithmticEqualAtom {
     }
 }
 
-impl_term! { ArithmticNotEqualAtom }
+impl_term! { ArithmeticNotEqualAtom }
 
-impl ArithmticNotEqualAtom {
+impl ArithmeticNotEqualAtom {
     pub fn new(left: Term, right: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_neq_atom(left.into(), right.into()) },
@@ -766,9 +766,9 @@ impl ArithmticNotEqualAtom {
     }
 }
 
-impl_term! { ArithmticLessThanAtom }
+impl_term! { ArithmeticLessThanAtom }
 
-impl ArithmticLessThanAtom {
+impl ArithmeticLessThanAtom {
     pub fn new(left: Term, right: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_lt_atom(left.into(), right.into()) },
@@ -776,9 +776,9 @@ impl ArithmticLessThanAtom {
     }
 }
 
-impl_term! { ArithmticLessThanEqualAtom }
+impl_term! { ArithmeticLessThanEqualAtom }
 
-impl ArithmticLessThanEqualAtom {
+impl ArithmeticLessThanEqualAtom {
     pub fn new(left: Term, right: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_leq_atom(left.into(), right.into()) },
@@ -786,9 +786,9 @@ impl ArithmticLessThanEqualAtom {
     }
 }
 
-impl_term! { ArithmticGreaterThanAtom }
+impl_term! { ArithmeticGreaterThanAtom }
 
-impl ArithmticGreaterThanAtom {
+impl ArithmeticGreaterThanAtom {
     pub fn new(left: Term, right: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_gt_atom(left.into(), right.into()) },
@@ -796,9 +796,9 @@ impl ArithmticGreaterThanAtom {
     }
 }
 
-impl_term! { ArithmticGreaterThanEqualAtom }
+impl_term! { ArithmeticGreaterThanEqualAtom }
 
-impl ArithmticGreaterThanEqualAtom {
+impl ArithmeticGreaterThanEqualAtom {
     pub fn new(left: Term, right: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_geq_atom(left.into(), right.into()) },
@@ -806,9 +806,9 @@ impl ArithmticGreaterThanEqualAtom {
     }
 }
 
-impl_term! { ArithmticLessThanZeroAtom }
+impl_term! { ArithmeticLessThanZeroAtom }
 
-impl ArithmticLessThanZeroAtom {
+impl ArithmeticLessThanZeroAtom {
     pub fn new(term: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_lt0_atom(term.into()) },
@@ -816,9 +816,9 @@ impl ArithmticLessThanZeroAtom {
     }
 }
 
-impl_term! { ArithmticLessThanEqualZeroAtom }
+impl_term! { ArithmeticLessThanEqualZeroAtom }
 
-impl ArithmticLessThanEqualZeroAtom {
+impl ArithmeticLessThanEqualZeroAtom {
     pub fn new(term: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_leq0_atom(term.into()) },
@@ -826,9 +826,9 @@ impl ArithmticLessThanEqualZeroAtom {
     }
 }
 
-impl_term! { ArithmticGreaterThanZeroAtom }
+impl_term! { ArithmeticGreaterThanZeroAtom }
 
-impl ArithmticGreaterThanZeroAtom {
+impl ArithmeticGreaterThanZeroAtom {
     pub fn new(term: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_gt0_atom(term.into()) },
@@ -836,9 +836,9 @@ impl ArithmticGreaterThanZeroAtom {
     }
 }
 
-impl_term! { ArithmticGreaterThanEqualZeroAtom }
+impl_term! { ArithmeticGreaterThanEqualZeroAtom }
 
-impl ArithmticGreaterThanEqualZeroAtom {
+impl ArithmeticGreaterThanEqualZeroAtom {
     pub fn new(term: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_geq0_atom(term.into()) },
@@ -846,9 +846,9 @@ impl ArithmticGreaterThanEqualZeroAtom {
     }
 }
 
-impl_term! { ArithmticEqualZeroAtom }
+impl_term! { ArithmeticEqualZeroAtom }
 
-impl ArithmticEqualZeroAtom {
+impl ArithmeticEqualZeroAtom {
     pub fn new(term: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_eq0_atom(term.into()) },
@@ -856,9 +856,9 @@ impl ArithmticEqualZeroAtom {
     }
 }
 
-impl_term! { ArithmticNotEqualZeroAtom }
+impl_term! { ArithmeticNotEqualZeroAtom }
 
-impl ArithmticNotEqualZeroAtom {
+impl ArithmeticNotEqualZeroAtom {
     pub fn new(term: Term) -> Result<Self> {
         Ok(Self {
             term: yices! { yices_arith_neq0_atom(term.into()) },
@@ -1538,18 +1538,18 @@ pub enum Term {
     Ceiling(Ceiling),
     IntegerDivision(IntegerDivision),
     IntegerModulo(IntegerModulo),
-    ArithmticEqualAtom(ArithmticEqualAtom),
-    ArithmticNotEqualAtom(ArithmticNotEqualAtom),
-    ArithmticLessThanAtom(ArithmticLessThanAtom),
-    ArithmticLessThanEqualAtom(ArithmticLessThanEqualAtom),
-    ArithmticGreaterThanAtom(ArithmticGreaterThanAtom),
-    ArithmticGreaterThanEqualAtom(ArithmticGreaterThanEqualAtom),
-    ArithmticLessThanZeroAtom(ArithmticLessThanZeroAtom),
-    ArithmticLessThanEqualZeroAtom(ArithmticLessThanEqualZeroAtom),
-    ArithmticGreaterThanZeroAtom(ArithmticGreaterThanZeroAtom),
-    ArithmticGreaterThanEqualZeroAtom(ArithmticGreaterThanEqualZeroAtom),
-    ArithmticEqualZeroAtom(ArithmticEqualZeroAtom),
-    ArithmticNotEqualZeroAtom(ArithmticNotEqualZeroAtom),
+    ArithmeticEqualAtom(ArithmeticEqualAtom),
+    ArithmeticNotEqualAtom(ArithmeticNotEqualAtom),
+    ArithmeticLessThanAtom(ArithmeticLessThanAtom),
+    ArithmeticLessThanEqualAtom(ArithmeticLessThanEqualAtom),
+    ArithmeticGreaterThanAtom(ArithmeticGreaterThanAtom),
+    ArithmeticGreaterThanEqualAtom(ArithmeticGreaterThanEqualAtom),
+    ArithmeticLessThanZeroAtom(ArithmeticLessThanZeroAtom),
+    ArithmeticLessThanEqualZeroAtom(ArithmeticLessThanEqualZeroAtom),
+    ArithmeticGreaterThanZeroAtom(ArithmeticGreaterThanZeroAtom),
+    ArithmeticGreaterThanEqualZeroAtom(ArithmeticGreaterThanEqualZeroAtom),
+    ArithmeticEqualZeroAtom(ArithmeticEqualZeroAtom),
+    ArithmeticNotEqualZeroAtom(ArithmeticNotEqualZeroAtom),
     DividesAtom(DividesAtom),
     IsIntegerAtom(IsIntegerAtom),
     BitVectorConstant(BitVectorConstant),
@@ -1646,18 +1646,18 @@ impl From<Term> for term_t {
             Term::Ceiling(term) => term.inner_term(),
             Term::IntegerDivision(term) => term.inner_term(),
             Term::IntegerModulo(term) => term.inner_term(),
-            Term::ArithmticEqualAtom(term) => term.inner_term(),
-            Term::ArithmticNotEqualAtom(term) => term.inner_term(),
-            Term::ArithmticLessThanAtom(term) => term.inner_term(),
-            Term::ArithmticLessThanEqualAtom(term) => term.inner_term(),
-            Term::ArithmticGreaterThanAtom(term) => term.inner_term(),
-            Term::ArithmticGreaterThanEqualAtom(term) => term.inner_term(),
-            Term::ArithmticLessThanZeroAtom(term) => term.inner_term(),
-            Term::ArithmticLessThanEqualZeroAtom(term) => term.inner_term(),
-            Term::ArithmticGreaterThanZeroAtom(term) => term.inner_term(),
-            Term::ArithmticGreaterThanEqualZeroAtom(term) => term.inner_term(),
-            Term::ArithmticEqualZeroAtom(term) => term.inner_term(),
-            Term::ArithmticNotEqualZeroAtom(term) => term.inner_term(),
+            Term::ArithmeticEqualAtom(term) => term.inner_term(),
+            Term::ArithmeticNotEqualAtom(term) => term.inner_term(),
+            Term::ArithmeticLessThanAtom(term) => term.inner_term(),
+            Term::ArithmeticLessThanEqualAtom(term) => term.inner_term(),
+            Term::ArithmeticGreaterThanAtom(term) => term.inner_term(),
+            Term::ArithmeticGreaterThanEqualAtom(term) => term.inner_term(),
+            Term::ArithmeticLessThanZeroAtom(term) => term.inner_term(),
+            Term::ArithmeticLessThanEqualZeroAtom(term) => term.inner_term(),
+            Term::ArithmeticGreaterThanZeroAtom(term) => term.inner_term(),
+            Term::ArithmeticGreaterThanEqualZeroAtom(term) => term.inner_term(),
+            Term::ArithmeticEqualZeroAtom(term) => term.inner_term(),
+            Term::ArithmeticNotEqualZeroAtom(term) => term.inner_term(),
             Term::DividesAtom(term) => term.inner_term(),
             Term::IsIntegerAtom(term) => term.inner_term(),
             Term::BitVectorConstant(term) => term.inner_term(),
