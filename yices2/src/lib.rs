@@ -1,4 +1,9 @@
 //! High-level Yices2 bindings
+//!
+//! For general Yices2 usage and API knowledge, consult the [Yices2
+//! Docs](https://yices.csl.sri.com/doc/index.html). This crate is a high-level wrapper
+//! around the Yices2 C API, and as such, the documentation here will be sparse,
+//! describing only the Rust-specific interface.
 
 // Allow unused unsafe because the yices! macro is sometimes not unsafe but having two
 // versions of it would be silly
@@ -68,9 +73,10 @@ mod ctor_test {
         context::{Config, Context, Status},
         reset,
         term::{
-            AbsoluteValue, Add, ArithmeticConstant, ArithmeticEqualAtom,
-            ArithmeticGreaterThanEqualAtom, ArithmeticLessThanEqualAtom, Equal, Gc, IfThenElse,
-            IntegerDivision, Mul, NamedTerm, Power, Square, Sub, Term, Uninterpreted,
+            AbsoluteValue, Add, ArithmeticConstant, ArithmeticEqualAtom, ArithmeticGreaterThanAtom,
+            ArithmeticGreaterThanEqualAtom, ArithmeticLessThanAtom, ArithmeticLessThanEqualAtom,
+            Equal, Gc, IfThenElse, IntegerDivision, Mul, NamedTerm, Or, Power, Square, Sub, Term,
+            Uninterpreted,
         },
         typ::{Bool, Integer, Real},
     };
@@ -84,7 +90,6 @@ mod ctor_test {
         let p: Term = "(= (* x x) 2)".parse()?;
         let config = Config::new()?;
         config.default_for_logic("QF_NRA")?;
-        config.set("mode", "one-shot")?;
         let ctx = Context::with_config(&config)?;
         ctx.assert([p])?;
         let status = ctx.check()?;
@@ -241,4 +246,34 @@ mod ctor_test {
 
         Ok(())
     }
+
+    // #[test]
+    // /// The example from the Yices2 readme for LRA
+    // fn readme_lra() -> Result<()> {
+    //     reset();
+
+    //     let config = Config::new()?;
+    //     config.default_for_logic("QF_LRA")?;
+    //     let ctx = Context::with_config(&config)?;
+    //     let x = Uninterpreted::new(Real::new()?.into())?;
+    //     x.set_name("x")?;
+    //     let y = Uninterpreted::new(Real::new()?.into())?;
+    //     y.set_name("y")?;
+    //     let t1 = Add::new(x.into(), y.into())?;
+    //     println!("t1: {:?}", t1);
+    //     let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
+    //     let t3 = Or::new([
+    //         ArithmeticLessThanAtom::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
+    //         ArithmeticLessThanAtom::new(y.into(), ArithmeticConstant::zero()?.into())?.into(),
+    //     ])?;
+    //     ctx.assert([t2.into(), t3.into()])?;
+    //     let status = ctx.check()?;
+    //     assert_eq!(status, Status::STATUS_SAT);
+    //     println!("status: {:?}", status);
+    //     let xv = ctx.model()?.double(&x.into())?;
+    //     let yv = ctx.model()?.double(&y.into())?;
+    //     assert_eq!(xv, 2.0);
+    //     assert_eq!(yv, -1.0);
+    //     Ok(())
+    // }
 }

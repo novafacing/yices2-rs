@@ -11,7 +11,6 @@ readme.workspace = true
 repository.workspace = true
 version.workspace = true
 
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -23,6 +22,9 @@ yices2-sys.workspace = true
 
 [features]
 default = ["ctor"]
+# By default, yices_init will be called at the beginning of the program and yices_exit will be called at the end.
+# If you want to call yices_init and yices_exit yourself, you can disable the default feature
+# and call Yices::new() yourself in your program (Yices::drop() calls yices_exit).
 ctor = ["dep:ctor"]
 
 [dev-dependencies]
