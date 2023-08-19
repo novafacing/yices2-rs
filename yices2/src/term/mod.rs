@@ -94,20 +94,20 @@ pub trait NamedTerm: InnerTerm {
 pub trait Gc: InnerTerm {
     fn incref(&self) -> Result<()> {
         yices_try! { yices_incref_term(self.inner_term()) }.and_then(|r| {
-            if r != 0 {
-                Ok(())
-            } else {
+            if r < 0 {
                 Err(Error::InvalidTerm)
+            } else {
+                Ok(())
             }
         })
     }
 
     fn decref(&self) -> Result<()> {
         yices_try! { yices_decref_term(self.inner_term()) }.and_then(|r| {
-            if r != 0 {
-                Ok(())
-            } else {
+            if r < 0 {
                 Err(Error::InvalidTerm)
+            } else {
+                Ok(())
             }
         })
     }

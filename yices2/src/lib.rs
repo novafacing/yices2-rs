@@ -66,12 +66,13 @@ pub fn reset() {
 mod ctor_test {
     use crate::{
         context::{Config, Context, Status},
+        reset,
         term::{
             AbsoluteValue, Add, ArithmeticConstant, ArithmeticEqualAtom,
-            ArithmeticGreaterThanEqualAtom, Equal, IfThenElse, IntegerDivision, Mul, NamedTerm,
-            Square, Sub, Term, Uninterpreted,
+            ArithmeticGreaterThanEqualAtom, ArithmeticLessThanEqualAtom, Equal, Gc, IfThenElse,
+            IntegerDivision, Mul, NamedTerm, Power, Square, Sub, Term, Uninterpreted,
         },
-        typ::{Integer, Real},
+        typ::{Bool, Integer, Real},
     };
     use anyhow::Result;
 
@@ -98,6 +99,8 @@ mod ctor_test {
     #[test]
     /// uf_plugin.c test case
     fn test_uf_plugin() -> Result<()> {
+        reset();
+
         let config = Config::new()?;
         config.default_for_logic("QF_NIA")?;
         let ctx = Context::with_config(&config)?;
@@ -143,6 +146,8 @@ mod ctor_test {
 
     #[test]
     fn test_term_utils() -> Result<()> {
+        reset();
+
         let config = Config::new()?;
         config.default_for_logic("QF_NIA")?;
         let ctx = Context::with_config(&config)?;
@@ -163,6 +168,76 @@ mod ctor_test {
         let status = ctx.check()?;
 
         assert_eq!(status, Status::STATUS_SAT);
+
+        Ok(())
+    }
+
+    #[test]
+    fn refcount_issue() -> Result<()> {
+        reset();
+
+        let bool_type = Bool::new()?;
+
+        for _ in 0..255 {
+            let t = Uninterpreted::new(bool_type.into())?;
+            t.incref()?;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn rba_buffer_terms() -> Result<()> {
+        reset();
+
+        let config = Config::new()?;
+        config.default_for_logic("QF_NIA")?;
+        let ctx = Context::with_config(&config)?;
+        let x = Uninterpreted::new(Integer::new()?.into())?;
+        x.set_name("x")?;
+
+        let power_term = Power::new(Square::new(x.into())?.into(), 2)?;
+        let leq_term = ArithmeticLessThanEqualAtom::new(power_term.into(), x.into())?;
+        ctx.assert([leq_term.into()])?;
+        assert_eq!(ctx.check()?, Status::STATUS_SAT);
+
+        Ok(())
+    }
+
+    #[test]
+    fn rationals() -> Result<()> {
+        reset();
+
+        let config = Config::new()?;
+        config.default_for_logic("QF_NIA")?;
+        let ctx = Context::with_config(&config)?;
+        let val = ArithmeticConstant::from_i64(-8)?;
+        let val_sqrt = IntegerDivision::new(val.into(), val.into())?;
+        let eq_one =
+            ArithmeticEqualAtom::new(val_sqrt.into(), ArithmeticConstant::from_i64(1)?.into())?;
+        ctx.assert([eq_one.into()])?;
+        assert_eq!(ctx.check()?, Status::STATUS_SAT);
+
+        Ok(())
+    }
+
+    #[test]
+    fn model_eval() -> Result<()> {
+        reset();
+
+        let config = Config::new()?;
+        config.default_for_logic("QF_LIA")?;
+        let ctx = Context::with_config(&config)?;
+        let x = Uninterpreted::new(Integer::new()?.into())?;
+        x.set_name("x")?;
+        let r_1 = IntegerDivision::new(x.into(), ArithmeticConstant::from_i32(2)?.into())?;
+        let check_zero_t1 =
+            ArithmeticEqualAtom::new(ArithmeticConstant::zero()?.into(), r_1.into())?;
+        ctx.assert([check_zero_t1.into()])?;
+        assert_eq!(ctx.check()?, Status::STATUS_SAT);
+        let mdl = ctx.model_with_eliminated()?;
+        let check_mdl = mdl.bool(&check_zero_t1.into())?;
+        assert!(check_mdl);
 
         Ok(())
     }

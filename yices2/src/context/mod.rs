@@ -295,7 +295,7 @@ impl Context {
     }
 
     pub fn model_with_eliminated(&self) -> Result<Model> {
-        unimplemented!()
+        Ok(Model::from(yices! { yices_get_model(self.context, 1) }))
     }
 }
 
