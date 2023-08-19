@@ -247,33 +247,33 @@ mod ctor_test {
         Ok(())
     }
 
-    // #[test]
-    // /// The example from the Yices2 readme for LRA
-    // fn readme_lra() -> Result<()> {
-    //     reset();
+    #[test]
+    /// The example from the Yices2 readme for LRA
+    fn readme_lra() -> Result<()> {
+        reset();
 
-    //     let config = Config::new()?;
-    //     config.default_for_logic("QF_LRA")?;
-    //     let ctx = Context::with_config(&config)?;
-    //     let x = Uninterpreted::new(Real::new()?.into())?;
-    //     x.set_name("x")?;
-    //     let y = Uninterpreted::new(Real::new()?.into())?;
-    //     y.set_name("y")?;
-    //     let t1 = Add::new(x.into(), y.into())?;
-    //     println!("t1: {:?}", t1);
-    //     let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
-    //     let t3 = Or::new([
-    //         ArithmeticLessThanAtom::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
-    //         ArithmeticLessThanAtom::new(y.into(), ArithmeticConstant::zero()?.into())?.into(),
-    //     ])?;
-    //     ctx.assert([t2.into(), t3.into()])?;
-    //     let status = ctx.check()?;
-    //     assert_eq!(status, Status::STATUS_SAT);
-    //     println!("status: {:?}", status);
-    //     let xv = ctx.model()?.double(&x.into())?;
-    //     let yv = ctx.model()?.double(&y.into())?;
-    //     assert_eq!(xv, 2.0);
-    //     assert_eq!(yv, -1.0);
-    //     Ok(())
-    // }
+        let config = Config::new()?;
+        config.default_for_logic("QF_LRA")?;
+        let ctx = Context::with_config(&config)?;
+        let x = Uninterpreted::new(Real::new()?.into())?;
+        x.set_name("x")?;
+        let y = Uninterpreted::new(Real::new()?.into())?;
+        y.set_name("y")?;
+        let t1 = Add::new(x.into(), y.into())?;
+        println!("t1: {:?}", t1);
+        let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
+        let t3 = Or::new([
+            ArithmeticLessThanAtom::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
+            ArithmeticLessThanAtom::new(y.into(), ArithmeticConstant::zero()?.into())?.into(),
+        ])?;
+        ctx.assert([t2.into(), t3.into()])?;
+        let status = ctx.check()?;
+        assert_eq!(status, Status::STATUS_SAT);
+        println!("status: {:?}", status);
+        let xv = ctx.model()?.double(&x.into())?;
+        let yv = ctx.model()?.double(&y.into())?;
+        assert_eq!(xv, 2.0);
+        assert_eq!(yv, -1.0);
+        Ok(())
+    }
 }
