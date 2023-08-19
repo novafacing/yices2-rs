@@ -58,7 +58,7 @@ pub fn reset() {
 #[cfg(all(test, feature = "ctor"))]
 mod ctor_test {
     use crate::{
-        context::Context,
+        context::{Config, Context},
         term::{NamedTerm, Term, Uninterpreted},
         typ::Real,
     };
@@ -68,10 +68,20 @@ mod ctor_test {
     fn test_mcsat() -> Result<()> {
         let x = Uninterpreted::new(Real::new()?.into())?;
         x.set_name("x")?;
+        println!("{:?}", x);
         let p: Term = "(= (* x x) 2)".parse()?;
-        let ctx = Context::new()?;
+        println!("{:?}", p);
+        let config = Config::new()?;
+        config.default_for_logic("QF_NRA")?;
+        config.set("mode", "one-shot")?;
+        let ctx = Context::with_config(&config)?;
         ctx.assert([p])?;
         let status = ctx.check()?;
+        eprintln!("status: {:?}", status);
+        let model = ctx.model()?;
+        println!("got model");
+        let dv = model.double(&x.into())?;
+        println!("model: {}", dv);
         Ok(())
     }
 }

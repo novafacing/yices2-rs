@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{ffi::CString, str::FromStr};
 
 use paste::paste;
 
@@ -512,7 +512,8 @@ impl Type {
 }
 
 pub fn remove_type_name(name: &str) -> Result<()> {
-    yices! { yices_remove_type_name(name.as_ptr() as *const i8) };
+    let c_str = CString::new(name).map_err(|_| Error::InvalidType)?;
+    yices! { yices_remove_type_name(c_str.as_ptr()) };
 
     Ok(())
 }
@@ -521,7 +522,8 @@ impl FromStr for Type {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let typ = yices! { yices_parse_type(s.as_ptr() as *const i8) };
+        let c_str = CString::new(s).map_err(|_| Error::InvalidType)?;
+        let typ = yices! { yices_parse_type(c_str.as_ptr()) };
 
         if typ == NULL_TYPE {
             Err(Error::InvalidType)

@@ -71,9 +71,14 @@ pub trait NamedTerm: InnerTerm {
     where
         Self: Sized,
     {
-        yices! { yices_set_term_name(self.inner_term(), name.as_ptr() as *const i8) };
+        let c_str = CString::new(name).map_err(|_| Error::InvalidTerm)?;
+        let ok = yices! { yices_set_term_name(self.inner_term(), c_str.as_ptr() as *const i8) };
 
-        Ok(())
+        if ok < 0 {
+            Err(Error::InvalidTerm)
+        } else {
+            Ok(())
+        }
     }
 
     fn clear_name(&self) -> Result<()>
@@ -1766,7 +1771,8 @@ impl Term {
     where
         Self: Sized,
     {
-        let term = yices! { yices_get_term_by_name(name.as_ptr() as *const i8) };
+        let c_str = CString::new(name).map_err(|_| Error::InvalidTerm)?;
+        let term = yices! { yices_get_term_by_name(c_str.as_ptr()) };
 
         if term == NULL_TERM {
             Err(Error::InvalidTerm)
@@ -1777,7 +1783,8 @@ impl Term {
 }
 
 pub fn remove_term_name(name: &str) -> Result<()> {
-    yices! { yices_remove_term_name(name.as_ptr() as *const i8) };
+    let c_str = CString::new(name).map_err(|_| Error::InvalidTerm)?;
+    yices! { yices_remove_term_name(c_str.as_ptr()) };
 
     Ok(())
 }
@@ -1786,7 +1793,8 @@ impl FromStr for Term {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let term = yices! { yices_parse_term(s.as_ptr() as *const i8) };
+        let c_str = CString::new(s).map_err(|_| Error::InvalidTerm)?;
+        let term = yices! { yices_parse_term(c_str.as_ptr()) };
 
         if term == NULL_TERM {
             Err(Error::InvalidTerm)

@@ -4,17 +4,16 @@ use crate::{
     error::Error,
     sys::{
         model_t, term_vector_t, type_t, yices_delete_term_vector, yices_delete_yval_vector,
-        yices_formulas_true_in_model, yices_free_model, yices_generalize_model,
-        yices_generalize_model_array, yices_get_bool_value, yices_get_bv_value,
+        yices_formulas_true_in_model, yices_free_model, yices_get_bool_value, yices_get_bv_value,
         yices_get_double_value, yices_get_int32_value, yices_get_int64_value,
         yices_get_rational32_value, yices_get_rational64_value, yices_get_scalar_value,
         yices_get_value, yices_get_value_as_term, yices_implicant_for_formula,
         yices_implicant_for_formulas, yices_init_term_vector, yices_init_yval_vector,
-        yices_model_collect_defined_terms, yices_model_from_map, yices_model_term_array_support,
-        yices_model_term_support, yices_term_array_value, yices_term_bitsize, yices_val_bitsize,
-        yices_val_expand_function, yices_val_expand_mapping, yices_val_expand_tuple,
-        yices_val_function_arity, yices_val_function_type, yices_val_get_bool, yices_val_get_bv,
-        yices_val_get_double, yices_val_get_int32, yices_val_get_int64, yices_val_get_rational32,
+        yices_model_collect_defined_terms, yices_model_from_map, yices_model_term_support,
+        yices_term_array_value, yices_term_bitsize, yices_val_bitsize, yices_val_expand_function,
+        yices_val_expand_mapping, yices_val_expand_tuple, yices_val_function_arity,
+        yices_val_function_type, yices_val_get_bool, yices_val_get_bv, yices_val_get_double,
+        yices_val_get_int32, yices_val_get_int64, yices_val_get_rational32,
         yices_val_get_rational64, yices_val_get_scalar, yices_val_is_int32, yices_val_is_int64,
         yices_val_is_integer, yices_val_is_rational32, yices_val_is_rational64,
         yices_val_mapping_arity, yices_val_tuple_arity, yval_t, yval_vector_t,
@@ -71,7 +70,7 @@ impl Model {
 
         let ok = yices! { yices_get_bool_value(self.model, term.into(), &mut result as *mut i32) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result != 0)
@@ -83,7 +82,7 @@ impl Model {
 
         let ok = yices! { yices_get_int32_value(self.model, term.into(), &mut result as *mut i32) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result)
@@ -95,7 +94,7 @@ impl Model {
 
         let ok = yices! { yices_get_int64_value(self.model, term.into(), &mut result as *mut i64) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result)
@@ -108,7 +107,7 @@ impl Model {
 
         let ok = yices! { yices_get_rational32_value(self.model, term.into(), &mut num as *mut _, &mut den as *mut _) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok((num, den))
@@ -121,7 +120,7 @@ impl Model {
 
         let ok = yices! { yices_get_rational64_value(self.model, term.into(), &mut num as *mut _, &mut den as *mut _) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok((num, den))
@@ -134,7 +133,7 @@ impl Model {
         let ok =
             yices! { yices_get_double_value(self.model, term.into(), &mut result as *mut f64) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result)
@@ -148,7 +147,7 @@ impl Model {
 
         let ok = yices! { yices_get_bv_value(self.model, term.into(), result.as_mut_ptr()) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result.into_iter().map(|b| b != 0).collect())
@@ -160,7 +159,7 @@ impl Model {
 
         let ok = yices! { yices_get_scalar_value(self.model, term.into(), &mut result as *mut _) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result)
@@ -188,80 +187,100 @@ impl Model {
         let ok =
             yices! { yices_get_value(self.model, term.into(), &mut value.value as *mut yval_t) };
 
-        if ok != 0 {
-            Ok(value)
-        } else {
+        if ok < 0 {
             Err(Error::InvalidTerm)
+        } else {
+            Ok(value)
         }
     }
 
     pub fn value_is_i32(&self, value: &Value) -> Result<bool> {
         let ok = yices! { yices_val_is_int32(self.model, &value.value as *const yval_t) };
 
-        Ok(ok != 0)
+        if ok < 0 {
+            Err(Error::InvalidTerm)
+        } else {
+            Ok(ok != 0)
+        }
     }
 
     pub fn value_is_i64(&self, value: &Value) -> Result<bool> {
         let ok = yices! { yices_val_is_int64(self.model, &value.value as *const yval_t) };
 
-        Ok(ok != 0)
+        if ok < 0 {
+            Err(Error::InvalidTerm)
+        } else {
+            Ok(ok != 0)
+        }
     }
 
     pub fn value_is_rational32(&self, value: &Value) -> Result<bool> {
         let ok = yices! { yices_val_is_rational32(self.model, &value.value as *const yval_t) };
 
-        Ok(ok != 0)
+        if ok < 0 {
+            Err(Error::InvalidTerm)
+        } else {
+            Ok(ok != 0)
+        }
     }
 
     pub fn value_is_rational64(&self, value: &Value) -> Result<bool> {
         let ok = yices! { yices_val_is_rational64(self.model, &value.value as *const yval_t) };
 
-        Ok(ok != 0)
+        if ok < 0 {
+            Err(Error::InvalidTerm)
+        } else {
+            Ok(ok != 0)
+        }
     }
 
     pub fn value_is_integer(&self, value: &Value) -> Result<bool> {
         let ok = yices! { yices_val_is_integer(self.model, &value.value as *const yval_t) };
 
-        Ok(ok != 0)
+        if ok < 0 {
+            Err(Error::InvalidTerm)
+        } else {
+            Ok(ok != 0)
+        }
     }
 
     pub fn value_bitsize(&self, value: &Value) -> Result<u32> {
         let size = yices! { yices_val_bitsize(self.model, &value.value as *const yval_t) };
 
-        if size != 0 {
-            Ok(size)
-        } else {
+        if size == 0 {
             Err(Error::InvalidTerm)
+        } else {
+            Ok(size)
         }
     }
 
     pub fn value_tuple_arity(&self, value: &Value) -> Result<u32> {
         let arity = yices! { yices_val_tuple_arity(self.model, &value.value as *const yval_t) };
 
-        if arity != 0 {
-            Ok(arity)
-        } else {
+        if arity == 0 {
             Err(Error::InvalidTerm)
+        } else {
+            Ok(arity)
         }
     }
 
     pub fn value_function_arity(&self, value: &Value) -> Result<u32> {
         let arity = yices! { yices_val_function_arity(self.model, &value.value as *const yval_t) };
 
-        if arity != 0 {
-            Ok(arity)
-        } else {
+        if arity == 0 {
             Err(Error::InvalidTerm)
+        } else {
+            Ok(arity)
         }
     }
 
     pub fn value_mapping_arity(&self, value: &Value) -> Result<u32> {
         let arity = yices! { yices_val_mapping_arity(self.model, &value.value as *const yval_t) };
 
-        if arity != 0 {
-            Ok(arity)
-        } else {
+        if arity == 0 {
             Err(Error::InvalidTerm)
+        } else {
+            Ok(arity)
         }
     }
 
@@ -280,7 +299,7 @@ impl Model {
 
         let ok = yices! { yices_val_get_bool(self.model, &value.value as *const yval_t, &mut result as *mut i32) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result != 0)
@@ -292,7 +311,7 @@ impl Model {
 
         let ok = yices! { yices_val_get_int32(self.model, &value.value as *const yval_t, &mut result as *mut i32) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result)
@@ -304,7 +323,7 @@ impl Model {
 
         let ok = yices! { yices_val_get_int64(self.model, &value.value as *const yval_t, &mut result as *mut i64) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result)
@@ -317,7 +336,7 @@ impl Model {
 
         let ok = yices! { yices_val_get_rational32(self.model, &value.value as *const yval_t, &mut num as *mut _, &mut den as *mut _) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok((num, den))
@@ -330,7 +349,7 @@ impl Model {
 
         let ok = yices! { yices_val_get_rational64(self.model, &value.value as *const yval_t, &mut num as *mut _, &mut den as *mut _) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok((num, den))
@@ -342,7 +361,7 @@ impl Model {
 
         let ok = yices! { yices_val_get_double(self.model, &value.value as *const yval_t, &mut result as *mut f64) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result)
@@ -356,7 +375,7 @@ impl Model {
 
         let ok = yices! { yices_val_get_bv(self.model, &value.value as *const yval_t, result.as_mut_ptr()) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result.into_iter().map(|b| b != 0).collect())
@@ -369,7 +388,7 @@ impl Model {
 
         let ok = yices! { yices_val_get_scalar(self.model, &value.value as *const yval_t, &mut result as *mut _, &mut type_result as *mut _) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok((result, type_result.try_into()?))
@@ -380,13 +399,11 @@ impl Model {
         let arity = yices! { yices_val_tuple_arity(self.model, &value.value as *const yval_t) };
         let def = Value::default();
 
-        let mut result = (0..arity as usize)
-            .map(|_| def.value.clone())
-            .collect::<Vec<_>>();
+        let mut result = (0..arity as usize).map(|_| def.value).collect::<Vec<_>>();
 
         let ok = yices! { yices_val_expand_tuple(self.model, &value.value as *const yval_t, result.as_mut_ptr() as *mut yval_t) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result.iter().map(|v| v.into()).collect())
@@ -394,7 +411,6 @@ impl Model {
     }
 
     pub fn value_expand_function(&self, value: &Value) -> Result<(Value, Vec<Value>)> {
-        let arity = yices! { yices_val_function_arity(self.model, &value.value as *const yval_t) };
         let mut def = Value::default();
 
         let mut result = yval_vector_t {
@@ -407,7 +423,7 @@ impl Model {
 
         let ok = yices! { yices_val_expand_function(self.model, &value.value as *const yval_t, &mut def.value as *mut yval_t, &mut result as *mut yval_vector_t) };
 
-        if ok != 0 {
+        if ok < 0 {
             yices! { yices_delete_yval_vector(&mut result as *mut yval_vector_t) };
             Err(Error::InvalidTerm)
         } else {
@@ -429,7 +445,7 @@ impl Model {
 
         let ok = yices! { yices_val_expand_mapping(self.model, &value.value as *const yval_t, result.as_mut_ptr() as *mut yval_t, &mut def.value as *mut yval_t) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             let res = result.iter().map(|v| v.into()).collect();
@@ -458,7 +474,7 @@ impl Model {
 
         let ok = yices! { yices_term_array_value(self.model, values.len() as u32, values.as_ptr(), result.as_mut_ptr()) };
 
-        if ok != 0 {
+        if ok < 0 {
             Err(Error::InvalidTerm)
         } else {
             Ok(result.into_iter().map(|t| t.into()).collect())
@@ -476,7 +492,7 @@ impl Model {
 
         let ok = yices! { yices_model_term_support(self.model, value.into(), &mut result as *mut term_vector_t) };
 
-        if ok != 0 {
+        if ok < 0 {
             yices! { yices_delete_term_vector(&mut result as *mut term_vector_t) };
             Err(Error::InvalidTerm)
         } else {
@@ -501,7 +517,7 @@ impl Model {
 
         let ok = yices! { yices_implicant_for_formula(self.model, value.into(), &mut result as *mut term_vector_t) };
 
-        if ok != 0 {
+        if ok < 0 {
             yices! { yices_delete_term_vector(&mut result as *mut term_vector_t) };
             Err(Error::InvalidTerm)
         } else {
@@ -531,7 +547,7 @@ impl Model {
 
         let ok = yices! { yices_implicant_for_formulas(self.model, values.len() as u32, values.as_ptr(), &mut result as *mut term_vector_t) };
 
-        if ok != 0 {
+        if ok < 0 {
             yices! { yices_delete_term_vector(&mut result as *mut term_vector_t) };
             Err(Error::InvalidTerm)
         } else {

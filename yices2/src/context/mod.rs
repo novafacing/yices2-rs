@@ -18,7 +18,6 @@ use crate::{
         yices_reset_context, yices_set_config, yices_set_param, yices_stop_search, NULL_TERM,
     },
     term::Term,
-    typ::Type,
     yices, yices_try, Error, Result,
 };
 
@@ -46,7 +45,7 @@ impl Config {
         let key = CString::new(key.as_ref()).unwrap();
         let value = CString::new(value.as_ref()).unwrap();
 
-        if yices! { yices_set_config(self.config, key.as_ptr(), value.as_ptr()) } != 0 {
+        if yices! { yices_set_config(self.config, key.as_ptr(), value.as_ptr()) } < 0 {
             Err(Error::CtxInvalidConfig)
         } else {
             Ok(())
@@ -58,12 +57,12 @@ impl Config {
         S: AsRef<str>,
     {
         let logic = CString::new(logic.as_ref()).unwrap();
-        let config = yices! { yices_default_config_for_logic(self.config, logic.as_ptr()) };
+        let ok = yices! { yices_default_config_for_logic(self.config, logic.as_ptr()) };
 
-        if config != 0 {
-            Ok(())
-        } else {
+        if ok < 0 {
             Err(Error::CtxInvalidConfig)
+        } else {
+            Ok(())
         }
     }
 }
