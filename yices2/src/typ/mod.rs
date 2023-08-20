@@ -1,4 +1,8 @@
-use std::{ffi::CString, str::FromStr};
+use std::{
+    ffi::{CStr, CString},
+    fmt::Display,
+    str::FromStr,
+};
 
 use paste::paste;
 
@@ -7,13 +11,14 @@ use crate::{
     sys::{
         type_t, type_vector_t, yices_bool_type, yices_bv_type, yices_bvtype_size,
         yices_clear_type_name, yices_compatible_types, yices_decref_type, yices_delete_type_vector,
-        yices_function_type, yices_get_type_by_name, yices_get_type_name, yices_incref_type,
-        yices_init_type_vector, yices_int_type, yices_new_scalar_type,
+        yices_free_string, yices_function_type, yices_get_type_by_name, yices_get_type_name,
+        yices_incref_type, yices_init_type_vector, yices_int_type, yices_new_scalar_type,
         yices_new_uninterpreted_type, yices_parse_type, yices_real_type, yices_remove_type_name,
         yices_scalar_type_card, yices_set_type_name, yices_test_subtype, yices_tuple_type,
         yices_type_child, yices_type_children, yices_type_is_bitvector, yices_type_is_bool,
         yices_type_is_function, yices_type_is_int, yices_type_is_real, yices_type_is_scalar,
-        yices_type_is_tuple, yices_type_is_uninterpreted, yices_type_num_children, NULL_TYPE,
+        yices_type_is_tuple, yices_type_is_uninterpreted, yices_type_num_children,
+        yices_type_to_string, NULL_TYPE,
     },
     yices, yices_try, Result,
 };
@@ -47,7 +52,13 @@ pub trait ChildType: InnerType {
     where
         Self: Sized,
     {
-        Ok(yices! { yices_type_num_children(self.inner_type()) })
+        let num_children = yices! { yices_type_num_children(self.inner_type()) };
+
+        if num_children < 0 {
+            Err(Error::TypeNumChildren)
+        } else {
+            Ok(num_children)
+        }
     }
 
     /// Get a child of a type. Only valid for Function and Tuple types
@@ -58,7 +69,7 @@ pub trait ChildType: InnerType {
         let typ = yices! { yices_type_child(self.inner_type(), index) };
 
         if typ == NULL_TYPE {
-            Err(Error::InvalidType)
+            Err(Error::TypeChild { index })
         } else {
             Type::try_from(typ)
         }
@@ -80,10 +91,10 @@ pub trait ChildType: InnerType {
 
         yices! { yices_init_type_vector(&mut vec as *mut type_vector_t) };
 
-        if yices! { yices_type_children(self.inner_type(), &mut vec as *mut type_vector_t) } == -1 {
+        if yices! { yices_type_children(self.inner_type(), &mut vec as *mut type_vector_t) } < 0 {
             yices! { yices_delete_type_vector(&mut vec as *mut type_vector_t) };
 
-            Err(Error::InvalidType)
+            Err(Error::TypeChildren)
         } else {
             let mut types = Vec::with_capacity(vec.size as usize);
 
@@ -91,7 +102,7 @@ pub trait ChildType: InnerType {
                 let typ = unsafe { *vec.data.offset(i as isize) };
 
                 if typ == NULL_TYPE {
-                    Err(Error::InvalidType)
+                    Err(Error::TypeChildren)
                 } else {
                     types.push(Type::try_from(typ)?);
                     Ok(())
@@ -107,20 +118,20 @@ pub trait ChildType: InnerType {
 pub trait Gc: InnerType {
     fn incref(&self) -> Result<()> {
         yices_try! { yices_incref_type(self.inner_type()) }.and_then(|r| {
-            if r != 0 {
-                Ok(())
+            if r < 0 {
+                Err(Error::TypeIncRef)
             } else {
-                Err(Error::InvalidType)
+                Ok(())
             }
         })
     }
 
     fn decref(&self) -> Result<()> {
         yices_try! { yices_decref_type(self.inner_type()) }.and_then(|r| {
-            if r != 0 {
-                Ok(())
+            if r < 0 {
+                Err(Error::TypeDecRef)
             } else {
-                Err(Error::InvalidType)
+                Ok(())
             }
         })
     }
@@ -139,7 +150,7 @@ pub trait NamedType: InnerType {
             Ok(Some(
                 unsafe { std::ffi::CStr::from_ptr(name) }
                     .to_str()
-                    .map_err(|_| Error::InvalidType)?
+                    .map_err(|e| Error::External(e.into()))?
                     .to_owned(),
             ))
         }
@@ -149,18 +160,28 @@ pub trait NamedType: InnerType {
     where
         Self: Sized,
     {
-        yices! { yices_set_type_name(self.inner_type(), name.as_ptr() as *const i8) };
+        let ok = yices! { yices_set_type_name(self.inner_type(), name.as_ptr() as *const i8) };
 
-        Ok(())
+        if ok < 0 {
+            Err(Error::TypeSetName {
+                name: name.to_string(),
+            })
+        } else {
+            Ok(())
+        }
     }
 
     fn clear_name(&self) -> Result<()>
     where
         Self: Sized,
     {
-        yices! { yices_clear_type_name(self.inner_type()) };
+        let ok = yices! { yices_clear_type_name(self.inner_type()) };
 
-        Ok(())
+        if ok < 0 {
+            Err(Error::TypeClearName)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -227,7 +248,7 @@ macro_rules! impl_type {
                 fn try_from(typ: Type) -> Result<Self> {
                     match typ {
                         Type::$id(typ) => Ok(typ),
-                        _ => Err(Error::InvalidType),
+                        _ => Err(Error::TypeFromType),
                     }
                 }
             }
@@ -238,7 +259,7 @@ macro_rules! impl_type {
                 fn try_from(typ: &Type) -> Result<Self> {
                     match typ {
                         Type::$id(typ) => Ok(*typ),
-                        _ => Err(Error::InvalidType),
+                        _ => Err(Error::TypeFromType),
                     }
                 }
             }
@@ -246,6 +267,22 @@ macro_rules! impl_type {
             impl From<$id> for Type {
                 fn from(typ: $id) -> Self {
                     Self::$id(typ)
+                }
+            }
+
+            impl std::fmt::Display for $id {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    let c_str = yices_try! { $crate::sys::yices_type_to_string(self.into(), u32::MAX, 1, 0) }
+                        .map_err(|_| std::fmt::Error)?;
+
+                    if c_str.is_null() {
+                        Err(std::fmt::Error)
+                    } else {
+                        let s = unsafe { CStr::from_ptr(c_str) };
+                        let s = s.to_str().map_err(|_| std::fmt::Error)?;
+                        write!(f, "{}", s)?;
+                        yices_try! { $crate::sys::yices_free_string(c_str) }.map_err(|_| std::fmt::Error)
+                    }
                 }
             }
         }
@@ -435,7 +472,7 @@ impl TryFrom<type_t> for Type {
         } else if yices_try! { yices_type_is_function(value) }.is_ok_and(|b| b != 0) {
             Ok(Type::Function(Function::from(value)))
         } else {
-            Err(Error::InvalidType)
+            Err(Error::TypeFromType)
         }
     }
 }
@@ -461,7 +498,7 @@ impl TryFrom<&type_t> for Type {
         } else if yices_try! { yices_type_is_function(*value) }.is_ok_and(|b| b != 0) {
             Ok(Type::Function(Function::from(value)))
         } else {
-            Err(Error::InvalidType)
+            Err(Error::TypeFromType)
         }
     }
 }
@@ -504,7 +541,9 @@ impl Type {
         let typ = yices! { yices_get_type_by_name(name.as_ptr() as *const i8) };
 
         if typ == NULL_TYPE {
-            Err(Error::InvalidType)
+            Err(Error::TypeNotFound {
+                name: name.to_string(),
+            })
         } else {
             Self::try_from(typ)
         }
@@ -512,7 +551,7 @@ impl Type {
 }
 
 pub fn remove_type_name(name: &str) -> Result<()> {
-    let c_str = CString::new(name).map_err(|_| Error::InvalidType)?;
+    let c_str = CString::new(name).map_err(|e| Error::External(e.into()))?;
     yices! { yices_remove_type_name(c_str.as_ptr()) };
 
     Ok(())
@@ -522,13 +561,29 @@ impl FromStr for Type {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let c_str = CString::new(s).map_err(|_| Error::InvalidType)?;
+        let c_str = CString::new(s).map_err(|e| Error::External(e.into()))?;
         let typ = yices! { yices_parse_type(c_str.as_ptr()) };
 
         if typ == NULL_TYPE {
-            Err(Error::InvalidType)
+            Err(Error::TypeParse { typ: s.to_string() })
         } else {
             Self::try_from(typ)
+        }
+    }
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let c_str = yices_try! { yices_type_to_string(self.into(), u32::MAX, 1, 0) }
+            .map_err(|_| std::fmt::Error)?;
+
+        if c_str.is_null() {
+            Err(std::fmt::Error)
+        } else {
+            let s = unsafe { CStr::from_ptr(c_str) };
+            let s = s.to_str().map_err(|_| std::fmt::Error)?;
+            write!(f, "{}", s)?;
+            yices_try! { yices_free_string(c_str) }.map_err(|_| std::fmt::Error)
         }
     }
 }

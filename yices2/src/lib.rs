@@ -8,6 +8,7 @@
 // Allow unused unsafe because the yices! macro is sometimes not unsafe but having two
 // versions of it would be silly
 #![allow(unused_unsafe)]
+#![deny(clippy::unwrap_used)]
 
 use crate::error::Error;
 use crate::sys::yices_reset;
@@ -70,15 +71,16 @@ pub fn reset() {
 #[cfg(all(test, feature = "ctor"))]
 mod ctor_test {
     use crate::{
-        context::{Config, Context, Status},
+        context::{Config, Context, Logic, Status},
         reset,
         term::{
             AbsoluteValue, Add, ArithmeticConstant, ArithmeticEqualAtom, ArithmeticGreaterThanAtom,
             ArithmeticGreaterThanEqualAtom, ArithmeticLessThanAtom, ArithmeticLessThanEqualAtom,
-            Equal, Gc, IfThenElse, IntegerDivision, Mul, NamedTerm, Or, Power, Square, Sub, Term,
-            Uninterpreted,
+            BitVectorAdd, BitVectorConstant, BitVectorSignedGreaterThanAtom,
+            BitVectorSignedLessThanAtom, Equal, Gc, IfThenElse, IntegerDivision, Mul, NamedTerm,
+            Or, Power, Square, Sub, Term, Uninterpreted,
         },
-        typ::{Bool, Integer, Real},
+        typ::{BitVector, Bool, Integer, Real},
     };
     use anyhow::Result;
 
@@ -88,8 +90,7 @@ mod ctor_test {
         let x = Uninterpreted::new(Real::new()?.into())?;
         x.set_name("x")?;
         let p: Term = "(= (* x x) 2)".parse()?;
-        let config = Config::new()?;
-        config.default_for_logic("QF_NRA")?;
+        let config = Config::with_defaults_for_logics([Logic::QF_NRA])?;
         let ctx = Context::with_config(&config)?;
         ctx.assert([p])?;
         let status = ctx.check()?;
@@ -106,8 +107,7 @@ mod ctor_test {
     fn test_uf_plugin() -> Result<()> {
         reset();
 
-        let config = Config::new()?;
-        config.default_for_logic("QF_NIA")?;
+        let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
 
         let x = Uninterpreted::new(Integer::new()?.into())?;
@@ -153,8 +153,7 @@ mod ctor_test {
     fn test_term_utils() -> Result<()> {
         reset();
 
-        let config = Config::new()?;
-        config.default_for_logic("QF_NIA")?;
+        let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
 
         let x = Uninterpreted::new(Integer::new()?.into())?;
@@ -195,8 +194,7 @@ mod ctor_test {
     fn rba_buffer_terms() -> Result<()> {
         reset();
 
-        let config = Config::new()?;
-        config.default_for_logic("QF_NIA")?;
+        let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
         let x = Uninterpreted::new(Integer::new()?.into())?;
         x.set_name("x")?;
@@ -213,8 +211,7 @@ mod ctor_test {
     fn rationals() -> Result<()> {
         reset();
 
-        let config = Config::new()?;
-        config.default_for_logic("QF_NIA")?;
+        let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
         let val = ArithmeticConstant::from_i64(-8)?;
         let val_sqrt = IntegerDivision::new(val.into(), val.into())?;
@@ -230,8 +227,7 @@ mod ctor_test {
     fn model_eval() -> Result<()> {
         reset();
 
-        let config = Config::new()?;
-        config.default_for_logic("QF_LIA")?;
+        let config = Config::with_defaults_for_logics([Logic::QF_LIA])?;
         let ctx = Context::with_config(&config)?;
         let x = Uninterpreted::new(Integer::new()?.into())?;
         x.set_name("x")?;
@@ -252,8 +248,7 @@ mod ctor_test {
     fn readme_lra() -> Result<()> {
         reset();
 
-        let config = Config::new()?;
-        config.default_for_logic("QF_LRA")?;
+        let config = Config::with_defaults_for_logics([Logic::QF_LRA])?;
         let ctx = Context::with_config(&config)?;
         let x = Uninterpreted::new(Real::new()?.into())?;
         x.set_name("x")?;
@@ -274,6 +269,35 @@ mod ctor_test {
         let yv = ctx.model()?.double(&y.into())?;
         assert_eq!(xv, 2.0);
         assert_eq!(yv, -1.0);
+        Ok(())
+    }
+
+    #[test]
+    fn readme_bv() -> Result<()> {
+        reset();
+
+        let config = Config::new()?;
+        config.set_defaults_for_logic(&Logic::QF_BV)?;
+        println!("Got config");
+
+        let ctx = Context::with_config(&config)?;
+        println!("Got context");
+        let bv = BitVector::new(32)?;
+        let bvc = BitVectorConstant::from_hex("00000000")?;
+
+        let x = Uninterpreted::new(bv.into())?;
+        x.set_name("x")?;
+        let y = Uninterpreted::new(bv.into())?;
+        y.set_name("y")?;
+        let a1 = BitVectorSignedGreaterThanAtom::new(x.into(), bvc.into())?;
+        let a2 = BitVectorSignedGreaterThanAtom::new(y.into(), bvc.into())?;
+        let a3 = BitVectorSignedLessThanAtom::new(
+            BitVectorAdd::new(x.into(), y.into())?.into(),
+            x.into(),
+        )?;
+        ctx.assert([a1.into(), a2.into(), a3.into()])?;
+
+        assert_eq!(ctx.check()?, Status::STATUS_SAT);
         Ok(())
     }
 }
