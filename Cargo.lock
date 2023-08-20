@@ -525,7 +525,7 @@ dependencies = [
 
 [[package]]
 name = "yices2"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "ctor",
@@ -537,7 +537,7 @@ dependencies = [
 
 [[package]]
 name = "yices2-sys"
-version = "0.1.0"
+version = "2.6.4"
 dependencies = [
  "anyhow",
  "bindgen",

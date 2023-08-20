@@ -250,12 +250,9 @@ mod ctor_test {
 
         let config = Config::with_defaults_for_logics([Logic::QF_LRA])?;
         let ctx = Context::with_config(&config)?;
-        let x = Uninterpreted::new(Real::new()?.into())?;
-        x.set_name("x")?;
-        let y = Uninterpreted::new(Real::new()?.into())?;
-        y.set_name("y")?;
+        let x = Uninterpreted::with_name(Real::new()?.into(), "x")?;
+        let y = Uninterpreted::with_name(Real::new()?.into(), "y")?;
         let t1 = Add::new(x.into(), y.into())?;
-        println!("t1: {:?}", t1);
         let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
         let t3 = Or::new([
             ArithmeticLessThanAtom::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
@@ -264,7 +261,6 @@ mod ctor_test {
         ctx.assert([t2.into(), t3.into()])?;
         let status = ctx.check()?;
         assert_eq!(status, Status::STATUS_SAT);
-        println!("status: {:?}", status);
         let xv = ctx.model()?.double(&x.into())?;
         let yv = ctx.model()?.double(&y.into())?;
         assert_eq!(xv, 2.0);
@@ -276,19 +272,12 @@ mod ctor_test {
     fn readme_bv() -> Result<()> {
         reset();
 
-        let config = Config::new()?;
-        config.set_defaults_for_logic(&Logic::QF_BV)?;
-        println!("Got config");
-
+        let config = Config::with_defaults_for_logics([Logic::QF_BV])?;
         let ctx = Context::with_config(&config)?;
-        println!("Got context");
         let bv = BitVector::new(32)?;
-        let bvc = BitVectorConstant::from_hex("00000000")?;
-
-        let x = Uninterpreted::new(bv.into())?;
-        x.set_name("x")?;
-        let y = Uninterpreted::new(bv.into())?;
-        y.set_name("y")?;
+        let bvc = BitVectorConstant::from_hex_with_name("00000000", "c")?;
+        let x = Uninterpreted::with_name(bv.into(), "x")?;
+        let y = Uninterpreted::with_name(bv.into(), "y")?;
         let a1 = BitVectorSignedGreaterThanAtom::new(x.into(), bvc.into())?;
         let a2 = BitVectorSignedGreaterThanAtom::new(y.into(), bvc.into())?;
         let a3 = BitVectorSignedLessThanAtom::new(

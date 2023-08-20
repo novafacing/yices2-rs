@@ -248,6 +248,12 @@ impl Uninterpreted {
             Ok(Self { term: ok })
         }
     }
+
+    pub fn with_name(typ: Type, name: &str) -> Result<Self> {
+        let s = Self::new(typ)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
 }
 
 impl_term! { Variable }
@@ -261,6 +267,12 @@ impl Variable {
         } else {
             Ok(Self { term: ok })
         }
+    }
+
+    pub fn with_name(typ: Type, name: &str) -> Result<Self> {
+        let s = Self::new(typ)?;
+        s.set_name(name)?;
+        Ok(s)
     }
 }
 
@@ -276,6 +288,12 @@ impl Constant {
         } else {
             Ok(Self { term: ok })
         }
+    }
+
+    pub fn with_name(typ: Type, index: i32, name: &str) -> Result<Self> {
+        let s = Self::new(typ, index)?;
+        s.set_name(name)?;
+        Ok(s)
     }
 }
 
@@ -497,6 +515,12 @@ impl BooleanConstant {
         }
     }
 
+    pub fn from_bool_with_name(value: bool, name: &str) -> Result<Self> {
+        let s = Self::from_bool(value)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn bitsize(&self) -> Result<u32> {
         Ok(yices! { yices_term_bitsize(self.inner_term()) })
     }
@@ -614,6 +638,12 @@ impl ArithmeticConstant {
         }
     }
 
+    pub fn zero_with_name(name: &str) -> Result<Self> {
+        let s = Self::zero()?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_i32(value: i32) -> Result<Self> {
         let ok = yices! { yices_int32(value) };
 
@@ -622,6 +652,12 @@ impl ArithmeticConstant {
         } else {
             Ok(Self { term: ok })
         }
+    }
+
+    pub fn from_i32_with_name(value: i32, name: &str) -> Result<Self> {
+        let s = Self::from_i32(value)?;
+        s.set_name(name)?;
+        Ok(s)
     }
 
     pub fn from_i64(value: i64) -> Result<Self> {
@@ -634,6 +670,12 @@ impl ArithmeticConstant {
         }
     }
 
+    pub fn from_i64_with_name(value: i64, name: &str) -> Result<Self> {
+        let s = Self::from_i64(value)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_rational32(num: i32, den: u32) -> Result<Self> {
         let ok = yices! { yices_rational32(num, den) };
 
@@ -644,6 +686,12 @@ impl ArithmeticConstant {
         }
     }
 
+    pub fn from_rational32_with_name(num: i32, den: u32, name: &str) -> Result<Self> {
+        let s = Self::from_rational32(num, den)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_rational64(num: i64, den: u64) -> Result<Self> {
         let ok = yices! { yices_rational64(num, den) };
 
@@ -652,6 +700,12 @@ impl ArithmeticConstant {
         } else {
             Ok(Self { term: ok })
         }
+    }
+
+    pub fn from_rational64_with_name(num: i64, den: u64, name: &str) -> Result<Self> {
+        let s = Self::from_rational64(num, den)?;
+        s.set_name(name)?;
+        Ok(s)
     }
 
     pub fn from_i32_terms<I>(terms: I) -> Result<Self>
@@ -676,6 +730,15 @@ impl ArithmeticConstant {
         }
     }
 
+    pub fn from_i32_terms_with_name<I>(terms: I, name: &str) -> Result<Self>
+    where
+        I: IntoIterator<Item = (Term, i32)>,
+    {
+        let s = Self::from_i32_terms(terms)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_i64_terms<I>(terms: I) -> Result<Self>
     where
         I: IntoIterator<Item = (Term, i64)>,
@@ -698,6 +761,15 @@ impl ArithmeticConstant {
         }
     }
 
+    pub fn from_i64_terms_with_name<I>(terms: I, name: &str) -> Result<Self>
+    where
+        I: IntoIterator<Item = (Term, i64)>,
+    {
+        let s = Self::from_i64_terms(terms)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_rational32_terms<I>(terms: I) -> Result<Self>
     where
         I: IntoIterator<Item = (Term, i32, u32)>,
@@ -717,6 +789,15 @@ impl ArithmeticConstant {
         }
     }
 
+    pub fn from_rational32_terms_with_name<I>(terms: I, name: &str) -> Result<Self>
+    where
+        I: IntoIterator<Item = (Term, i32, u32)>,
+    {
+        let s = Self::from_rational32_terms(terms)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_rational64_terms<I>(terms: I) -> Result<Self>
     where
         I: IntoIterator<Item = (Term, i64, u64)>,
@@ -734,6 +815,15 @@ impl ArithmeticConstant {
         } else {
             Ok(Self { term: ok })
         }
+    }
+
+    pub fn from_rational64_terms_with_name<I>(terms: I, name: &str) -> Result<Self>
+    where
+        I: IntoIterator<Item = (Term, i64, u64)>,
+    {
+        let s = Self::from_rational64_terms(terms)?;
+        s.set_name(name)?;
+        Ok(s)
     }
 }
 
@@ -1180,6 +1270,12 @@ impl BitVectorConstant {
         }
     }
 
+    pub fn from_i32_with_name(size: u32, value: i32, name: &str) -> Result<Self> {
+        let s = Self::from_i32(size, value)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_i64(size: u32, value: i64) -> Result<Self> {
         let ok = yices! { yices_bvconst_int64(size, value) };
 
@@ -1188,6 +1284,12 @@ impl BitVectorConstant {
         } else {
             Ok(Self { term: ok })
         }
+    }
+
+    pub fn from_i64_with_name(size: u32, value: i64, name: &str) -> Result<Self> {
+        let s = Self::from_i64(size, value)?;
+        s.set_name(name)?;
+        Ok(s)
     }
 
     pub fn from_u32(size: u32, value: u32) -> Result<Self> {
@@ -1200,6 +1302,12 @@ impl BitVectorConstant {
         }
     }
 
+    pub fn from_u32_with_name(size: u32, value: u32, name: &str) -> Result<Self> {
+        let s = Self::from_u32(size, value)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_u64(size: u32, value: u64) -> Result<Self> {
         let ok = yices! { yices_bvconst_uint64(size, value) };
 
@@ -1208,6 +1316,12 @@ impl BitVectorConstant {
         } else {
             Ok(Self { term: ok })
         }
+    }
+
+    pub fn from_u64_with_name(size: u32, value: u64, name: &str) -> Result<Self> {
+        let s = Self::from_u64(size, value)?;
+        s.set_name(name)?;
+        Ok(s)
     }
 
     pub fn zero(size: u32) -> Result<Self> {
@@ -1220,6 +1334,12 @@ impl BitVectorConstant {
         }
     }
 
+    pub fn zero_with_name(size: u32, name: &str) -> Result<Self> {
+        let s = Self::zero(size)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn one(size: u32) -> Result<Self> {
         let ok = yices! { yices_bvconst_one(size) };
 
@@ -1230,6 +1350,12 @@ impl BitVectorConstant {
         }
     }
 
+    pub fn one_with_name(size: u32, name: &str) -> Result<Self> {
+        let s = Self::one(size)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn minus_one(size: u32) -> Result<Self> {
         let ok = yices! { yices_bvconst_minus_one(size) };
 
@@ -1238,6 +1364,12 @@ impl BitVectorConstant {
         } else {
             Ok(Self { term: ok })
         }
+    }
+
+    pub fn minus_one_with_name(size: u32, name: &str) -> Result<Self> {
+        let s = Self::minus_one(size)?;
+        s.set_name(name)?;
+        Ok(s)
     }
 
     pub fn from_i32_terms<I>(values: I) -> Result<Self>
@@ -1255,6 +1387,15 @@ impl BitVectorConstant {
         }
     }
 
+    pub fn from_i32_terms_with_name<I>(values: I, name: &str) -> Result<Self>
+    where
+        I: IntoIterator<Item = i32>,
+    {
+        let s = Self::from_i32_terms(values)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_hex<S>(hex: S) -> Result<Self>
     where
         S: AsRef<str>,
@@ -1270,6 +1411,15 @@ impl BitVectorConstant {
         }
     }
 
+    pub fn from_hex_with_name<S>(hex: S, name: &str) -> Result<Self>
+    where
+        S: AsRef<str>,
+    {
+        let s = Self::from_hex(hex)?;
+        s.set_name(name)?;
+        Ok(s)
+    }
+
     pub fn from_bin<S>(bin: S) -> Result<Self>
     where
         S: AsRef<str>,
@@ -1283,6 +1433,15 @@ impl BitVectorConstant {
         } else {
             Ok(Self { term: ok })
         }
+    }
+
+    pub fn from_bin_with_name<S>(bin: S, name: &str) -> Result<Self>
+    where
+        S: AsRef<str>,
+    {
+        let s = Self::from_bin(bin)?;
+        s.set_name(name)?;
+        Ok(s)
     }
 }
 
