@@ -8,6 +8,7 @@ Low and high-level Rust bindings to the [Yices2](https://yices.csl.sri.com) SMT 
     - [BitVectors](#bitvectors)
   - [Usage](#usage)
   - [Features](#features)
+  - [Notes](#notes)
 
 ## Example
 
@@ -76,3 +77,10 @@ you can use the `default-features = false` flag in your `Cargo.toml`.
 ```toml
 yices2 = { version = "2.6.4", default-features = false }
 ```
+
+## Notes
+
+This library is not thread safe, because the underlying `Yices2` library is not thread
+safe. Do not use this library in multithreaded code. To use in multi-threaded code,
+create a separate process and submit requests to the solver running in that process or
+disable the `ctor` feature and manage state yourself.
