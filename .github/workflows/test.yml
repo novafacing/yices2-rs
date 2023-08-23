@@ -8,7 +8,7 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          apt-get -y update && apt-get -y install \
+          sudo apt-get -y update && sudo apt-get -y install \
             clang \
             llvm-dev \
             cmake \
