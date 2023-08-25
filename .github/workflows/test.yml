@@ -10,11 +10,9 @@ jobs:
         run: |
           sudo apt-get -y update && sudo apt-get -y install \
             clang \
-            llvm-dev \
             cmake \
             build-essential \
             autoconf \
-            bash \
             gperf
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
