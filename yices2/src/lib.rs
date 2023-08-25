@@ -182,14 +182,14 @@ mod ctor_test {
             BitVectorSignedLessThanAtom, Equal, GcTerm, IfThenElse, IntegerDivision, Mul,
             NamedTerm, Or, Power, Square, Sub, Term, Uninterpreted,
         },
-        typ::{BitVector, Bool, Integer, Real},
+        typ::{BitVectorType, BoolType, IntegerType, RealType},
     };
     use anyhow::Result;
 
     #[test]
     /// mcsat_example.c test case
     fn test_example_mcsat() -> Result<()> {
-        let x = Uninterpreted::new(Real::new()?.into())?;
+        let x = Uninterpreted::new(RealType::new()?.into())?;
         x.set_name("x")?;
         let p: Term = "(= (* x x) 2)".parse()?;
         let config = Config::with_defaults_for_logics([Logic::QF_NRA])?;
@@ -212,7 +212,7 @@ mod ctor_test {
         let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
 
-        let x = Uninterpreted::new(Integer::new()?.into())?;
+        let x = Uninterpreted::new(IntegerType::new()?.into())?;
         x.set_name("x")?;
 
         let t1 = IfThenElse::new(
@@ -258,7 +258,7 @@ mod ctor_test {
         let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
 
-        let x = Uninterpreted::new(Integer::new()?.into())?;
+        let x = Uninterpreted::new(IntegerType::new()?.into())?;
         x.set_name("x")?;
 
         let one = ArithmeticConstant::from_i32(1)?;
@@ -282,7 +282,7 @@ mod ctor_test {
     fn refcount_issue() -> Result<()> {
         reset();
 
-        let bool_type = Bool::new()?;
+        let bool_type = BoolType::new()?;
 
         for _ in 0..255 {
             let t = Uninterpreted::new(bool_type.into())?;
@@ -298,7 +298,7 @@ mod ctor_test {
 
         let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
-        let x = Uninterpreted::new(Integer::new()?.into())?;
+        let x = Uninterpreted::new(IntegerType::new()?.into())?;
         x.set_name("x")?;
 
         let power_term = Power::new(Square::new(x.into())?.into(), 2)?;
@@ -331,7 +331,7 @@ mod ctor_test {
 
         let config = Config::with_defaults_for_logics([Logic::QF_LIA])?;
         let ctx = Context::with_config(&config)?;
-        let x = Uninterpreted::new(Integer::new()?.into())?;
+        let x = Uninterpreted::new(IntegerType::new()?.into())?;
         x.set_name("x")?;
         let r_1 = IntegerDivision::new(x.into(), ArithmeticConstant::from_i32(2)?.into())?;
         let check_zero_t1 =
@@ -352,8 +352,8 @@ mod ctor_test {
 
         let config = Config::with_defaults_for_logics([Logic::QF_LRA])?;
         let ctx = Context::with_config(&config)?;
-        let x = Uninterpreted::with_name(Real::new()?.into(), "x")?;
-        let y = Uninterpreted::with_name(Real::new()?.into(), "y")?;
+        let x = Uninterpreted::with_name(RealType::new()?.into(), "x")?;
+        let y = Uninterpreted::with_name(RealType::new()?.into(), "y")?;
         let t1 = Add::new(x.into(), y.into())?;
         let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
         let t3 = Or::new([
@@ -376,7 +376,7 @@ mod ctor_test {
 
         let config = Config::with_defaults_for_logics([Logic::QF_BV])?;
         let ctx = Context::with_config(&config)?;
-        let bv = BitVector::new(32)?;
+        let bv = BitVectorType::new(32)?;
         let bvc = BitVectorConstant::from_hex_with_name("00000000", "c")?;
         let x = Uninterpreted::with_name(bv.into(), "x")?;
         let y = Uninterpreted::with_name(bv.into(), "y")?;
