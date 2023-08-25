@@ -9,14 +9,18 @@ use crate::{
         yices_get_rational32_value, yices_get_rational64_value, yices_get_scalar_value,
         yices_get_value, yices_get_value_as_term, yices_implicant_for_formula,
         yices_implicant_for_formulas, yices_init_term_vector, yices_init_yval_vector,
-        yices_model_collect_defined_terms, yices_model_from_map, yices_model_term_support,
-        yices_model_to_string, yices_term_array_value, yices_term_bitsize, yices_val_bitsize,
-        yices_val_expand_function, yices_val_expand_mapping, yices_val_expand_tuple,
-        yices_val_function_arity, yices_val_function_type, yices_val_get_bool, yices_val_get_bv,
-        yices_val_get_double, yices_val_get_int32, yices_val_get_int64, yices_val_get_rational32,
-        yices_val_get_rational64, yices_val_get_scalar, yices_val_is_int32, yices_val_is_int64,
-        yices_val_is_integer, yices_val_is_rational32, yices_val_is_rational64,
-        yices_val_mapping_arity, yices_val_tuple_arity, yval_t, yval_vector_t, NULL_TERM,
+        yices_model_collect_defined_terms, yices_model_from_map, yices_model_set_bool,
+        yices_model_set_bv_from_array, yices_model_set_bv_int32, yices_model_set_bv_int64,
+        yices_model_set_bv_uint32, yices_model_set_bv_uint64, yices_model_set_int32,
+        yices_model_set_int64, yices_model_set_rational32, yices_model_set_rational64,
+        yices_model_term_support, yices_model_to_string, yices_term_array_value,
+        yices_term_bitsize, yices_val_bitsize, yices_val_expand_function, yices_val_expand_mapping,
+        yices_val_expand_tuple, yices_val_function_arity, yices_val_function_type,
+        yices_val_get_bool, yices_val_get_bv, yices_val_get_double, yices_val_get_int32,
+        yices_val_get_int64, yices_val_get_rational32, yices_val_get_rational64,
+        yices_val_get_scalar, yices_val_is_int32, yices_val_is_int64, yices_val_is_integer,
+        yices_val_is_rational32, yices_val_is_rational64, yices_val_mapping_arity,
+        yices_val_tuple_arity, yval_t, yval_vector_t, NULL_TERM,
     },
     term::Term,
     typ::Type,
@@ -65,7 +69,7 @@ impl Model {
         Ok(result)
     }
 
-    pub fn bool(&self, term: &Term) -> Result<bool> {
+    pub fn get_bool(&self, term: &Term) -> Result<bool> {
         let mut result = 0;
 
         let ok = yices! { yices_get_bool_value(self.model, term.into(), &mut result as *mut i32) };
@@ -77,7 +81,7 @@ impl Model {
         }
     }
 
-    pub fn int32(&self, term: &Term) -> Result<i32> {
+    pub fn get_int32(&self, term: &Term) -> Result<i32> {
         let mut result = 0;
 
         let ok = yices! { yices_get_int32_value(self.model, term.into(), &mut result as *mut i32) };
@@ -89,7 +93,7 @@ impl Model {
         }
     }
 
-    pub fn int64(&self, term: &Term) -> Result<i64> {
+    pub fn get_int64(&self, term: &Term) -> Result<i64> {
         let mut result = 0;
 
         let ok = yices! { yices_get_int64_value(self.model, term.into(), &mut result as *mut i64) };
@@ -101,7 +105,7 @@ impl Model {
         }
     }
 
-    pub fn rational32(&self, term: &Term) -> Result<(i32, u32)> {
+    pub fn get_rational32(&self, term: &Term) -> Result<(i32, u32)> {
         let mut num = 0;
         let mut den = 0;
 
@@ -114,7 +118,7 @@ impl Model {
         }
     }
 
-    pub fn rational64(&self, term: &Term) -> Result<(i64, u64)> {
+    pub fn get_rational64(&self, term: &Term) -> Result<(i64, u64)> {
         let mut num = 0;
         let mut den = 0;
 
@@ -127,7 +131,7 @@ impl Model {
         }
     }
 
-    pub fn double(&self, term: &Term) -> Result<f64> {
+    pub fn get_double(&self, term: &Term) -> Result<f64> {
         let mut result = 0.0;
 
         let ok =
@@ -140,7 +144,7 @@ impl Model {
         }
     }
 
-    pub fn bitvector(&self, term: &Term) -> Result<Vec<bool>> {
+    pub fn get_bitvector(&self, term: &Term) -> Result<Vec<bool>> {
         let size = yices! { yices_term_bitsize(term.into()) };
 
         let mut result = vec![0; size as usize];
@@ -154,7 +158,7 @@ impl Model {
         }
     }
 
-    pub fn scalar(&self, term: &Term) -> Result<i32> {
+    pub fn get_scalar(&self, term: &Term) -> Result<i32> {
         let mut result = 0;
 
         let ok = yices! { yices_get_scalar_value(self.model, term.into(), &mut result as *mut _) };
@@ -562,6 +566,110 @@ impl Model {
     }
 
     // TODO: Generalize
+
+    pub fn set_bool(&self, variable: &Term, value: bool) -> Result<()> {
+        let value = if value { 1 } else { 0 };
+
+        let ok = yices! { yices_model_set_bool(self.model, variable.into(), value) };
+
+        if ok < 0 {
+            Err(Error::ModelSetBoolean)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn set_int32(&self, variable: &Term, value: i32) -> Result<()> {
+        let ok = yices! { yices_model_set_int32(self.model, variable.into(), value) };
+
+        if ok < 0 {
+            Err(Error::ModelSetInt32)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn set_int64(&self, variable: &Term, value: i64) -> Result<()> {
+        let ok = yices! { yices_model_set_int64(self.model, variable.into(), value) };
+
+        if ok < 0 {
+            Err(Error::ModelSetInt64)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn set_rational32(&self, variable: &Term, num: i32, den: u32) -> Result<()> {
+        let ok = yices! { yices_model_set_rational32(self.model, variable.into(), num, den) };
+
+        if ok < 0 {
+            Err(Error::ModelSetRational32)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn set_rational64(&self, variable: &Term, num: i64, den: u64) -> Result<()> {
+        let ok = yices! { yices_model_set_rational64(self.model, variable.into(), num, den) };
+
+        if ok < 0 {
+            Err(Error::ModelSetRational64)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn set_bitvector_from_array(&self, variable: &Term, value: &[bool]) -> Result<()> {
+        let value: Vec<_> = value.iter().map(|b| if *b { 1 } else { 0 }).collect();
+
+        let ok = yices! { yices_model_set_bv_from_array(self.model, variable.into(), value.len() as u32, value.as_ptr() as *const i32) };
+
+        if ok < 0 {
+            Err(Error::ModelSetBitVectorFromArray)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn set_bitvector_int32(&self, variable: &Term, value: i32) -> Result<()> {
+        let ok = yices! { yices_model_set_bv_int32(self.model, variable.into(), value) };
+
+        if ok < 0 {
+            Err(Error::ModelSetBitVectorInt32)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn set_bitvector_uint32(&self, variable: &Term, value: u32) -> Result<()> {
+        let ok = yices! { yices_model_set_bv_uint32(self.model, variable.into(), value) };
+
+        if ok < 0 {
+            Err(Error::ModelSetBitVectorUInt32)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn set_bitvector_int64(&self, variable: &Term, value: i64) -> Result<()> {
+        let ok = yices! { yices_model_set_bv_int64(self.model, variable.into(), value) };
+
+        if ok < 0 {
+            Err(Error::ModelSetBitVectorInt64)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn set_bitvector_uint64(&self, variable: &Term, value: u64) -> Result<()> {
+        let ok = yices! { yices_model_set_bv_uint64(self.model, variable.into(), value) };
+
+        if ok < 0 {
+            Err(Error::ModelSetBitVectorUInt64)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl From<*mut model_t> for Model {

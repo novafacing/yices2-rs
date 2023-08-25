@@ -14,44 +14,56 @@ Low and high-level Rust bindings to the [Yices2](https://yices.csl.sri.com) SMT 
 
 ### Linear Real Arithmetic
 
-```rust
-let config = Config::with_defaults_for_logics([Logic::QF_LRA])?;
-let ctx = Context::with_config(&config)?;
-let x = Uninterpreted::with_name(Real::new()?.into(), "x")?;
-let y = Uninterpreted::with_name(Real::new()?.into(), "y")?;
-let t1 = Add::new(x.into(), y.into())?;
-let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
-let t3 = Or::new([
-    ArithmeticLessThanAtom::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
-    ArithmeticLessThanAtom::new(y.into(), ArithmeticConstant::zero()?.into())?.into(),
-])?;
-ctx.assert([t2.into(), t3.into()])?;
-let status = ctx.check()?;
-assert_eq!(status, Status::STATUS_SAT);
-let xv = ctx.model()?.double(&x.into())?;
-let yv = ctx.model()?.double(&y.into())?;
-assert_eq!(xv, 2.0);
-assert_eq!(yv, -1.0);
+```rust,no_run
+use yices2::prelude::*;
+
+fn main() -> Result<(), Error> {
+  let config = Config::with_defaults_for_logics([Logic::QF_LRA])?;
+  let ctx = Context::with_config(&config)?;
+  let x = Uninterpreted::with_name(RealType::new()?.into(), "x")?;
+  let y = Uninterpreted::with_name(RealType::new()?.into(), "y")?;
+  let t1 = Add::new(x.into(), y.into())?;
+  let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
+  let t3 = Or::new([
+      ArithmeticLessThanAtom::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
+      ArithmeticLessThanAtom::new(y.into(), ArithmeticConstant::zero()?.into())?.into(),
+  ])?;
+  ctx.assert([t2.into(), t3.into()])?;
+  let status = ctx.check()?;
+  assert_eq!(status, Status::STATUS_SAT);
+  let xv = ctx.model()?.get_double(&x.into())?;
+  let yv = ctx.model()?.get_double(&y.into())?;
+  assert_eq!(xv, 2.0);
+  assert_eq!(yv, -1.0);
+
+  Ok(())
+}
 ```
 
 ### BitVectors
 
-```rust
-let config = Config::with_defaults_for_logics([Logic::QF_BV])?;
-let ctx = Context::with_config(&config)?;
-let bv = BitVector::new(32)?;
-let bvc = BitVectorConstant::from_hex_with_name("00000000", "c")?;
-let x = Uninterpreted::with_name(bv.into(), "x")?;
-let y = Uninterpreted::with_name(bv.into(), "y")?;
-let a1 = BitVectorSignedGreaterThanAtom::new(x.into(), bvc.into())?;
-let a2 = BitVectorSignedGreaterThanAtom::new(y.into(), bvc.into())?;
-let a3 = BitVectorSignedLessThanAtom::new(
-    BitVectorAdd::new(x.into(), y.into())?.into(),
-    x.into(),
-)?;
-ctx.assert([a1.into(), a2.into(), a3.into()])?;
+```rust,no_run
+use yices2::prelude::*;
 
-assert_eq!(ctx.check()?, Status::STATUS_SAT);
+fn main() -> Result<(), Error> {
+  let config = Config::with_defaults_for_logics([Logic::QF_BV])?;
+  let ctx = Context::with_config(&config)?;
+  let bv = BitVectorType::new(32)?;
+  let bvc = BitVectorConstant::from_hex_with_name("00000000", "c")?;
+  let x = Uninterpreted::with_name(bv.into(), "x")?;
+  let y = Uninterpreted::with_name(bv.into(), "y")?;
+  let a1 = BitVectorSignedGreaterThanAtom::new(x.into(), bvc.into())?;
+  let a2 = BitVectorSignedGreaterThanAtom::new(y.into(), bvc.into())?;
+  let a3 = BitVectorSignedLessThanAtom::new(
+      BitVectorAdd::new(x.into(), y.into())?.into(),
+      x.into(),
+  )?;
+  ctx.assert([a1.into(), a2.into(), a3.into()])?;
+
+  assert_eq!(ctx.check()?, Status::STATUS_SAT);
+
+  Ok(())
+}
 ```
 
 ## Usage

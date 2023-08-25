@@ -212,6 +212,31 @@ pub enum Error {
     TypeDecRef,
     #[error(transparent)]
     External(#[from] anyhow::Error),
+
+    #[error("Failed to set boolean value in model")]
+    ModelSetBoolean,
+    #[error("Failed to set 32-bit integer value in model")]
+    ModelSetInt32,
+    #[error("Failed to set 64-bit integer value in model")]
+    ModelSetInt64,
+    #[error("Failed to set 32-bit unsigned integer value in model")]
+    ModelSetUInt32,
+    #[error("Failed to set 64-bit unsigned integer value in model")]
+    ModelSetUInt64,
+    #[error("Failed to set 32-bit rational value in model")]
+    ModelSetRational32,
+    #[error("Failed to set 64-bit rational value in model")]
+    ModelSetRational64,
+    #[error("Failed to set bitvector value in model from 32-bit integer")]
+    ModelSetBitVectorInt32,
+    #[error("Failed to set bitvector value in model from 64-bit integer")]
+    ModelSetBitVectorInt64,
+    #[error("Failed to set bitvector value in model from 32-bit unsigned integer")]
+    ModelSetBitVectorUInt32,
+    #[error("Failed to set bitvector value in model from 64-bit unsigned integer")]
+    ModelSetBitVectorUInt64,
+    #[error("Failed to set bitvector value from array")]
+    ModelSetBitVectorFromArray,
 }
 
 pub fn error() -> Error {

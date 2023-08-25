@@ -115,7 +115,7 @@ pub trait ChildType: InnerType {
         }
     }
 }
-pub trait Gc: InnerType {
+pub trait GcType: InnerType {
     fn incref(&self) -> Result<()> {
         yices_try! { yices_incref_type(self.inner_type()) }.and_then(|r| {
             if r < 0 {
@@ -216,7 +216,7 @@ macro_rules! impl_type {
             impl SubType for $id {}
             impl CompatibleType for $id {}
             impl NamedType for $id {}
-            impl Gc for $id {}
+            impl GcType for $id {}
 
             impl From<type_t> for $id {
                 fn from(typ: type_t) -> Self {
@@ -289,9 +289,9 @@ macro_rules! impl_type {
     };
 }
 
-impl_type! { Bool }
+impl_type! { BoolType, bool }
 
-impl Bool {
+impl BoolType {
     pub fn new() -> Result<Self> {
         Ok(Self {
             typ: yices! { yices_bool_type() },
@@ -299,9 +299,9 @@ impl Bool {
     }
 }
 
-impl_type! { Integer, int }
+impl_type! { IntegerType, int }
 
-impl Integer {
+impl IntegerType {
     /// Return the integer type
     pub fn new() -> Result<Self> {
         Ok(Self {
@@ -310,9 +310,9 @@ impl Integer {
     }
 }
 
-impl_type! { Real }
+impl_type! { RealType, real }
 
-impl Real {
+impl RealType {
     /// Return the real type
     pub fn new() -> Result<Self> {
         Ok(Self {
@@ -321,9 +321,9 @@ impl Real {
     }
 }
 
-impl_type! { BitVector }
+impl_type! { BitVectorType, bitvector }
 
-impl BitVector {
+impl BitVectorType {
     /// Construct or return the bitvector type for a bitvector with a bit-width of
     /// `size`.
     pub fn new(size: u32) -> Result<Self> {
@@ -339,9 +339,9 @@ impl BitVector {
     }
 }
 
-impl_type! { Scalar }
+impl_type! { ScalarType, scalar }
 
-impl Scalar {
+impl ScalarType {
     /// Construct or return the scalar type with `cardinality` elements.
     pub fn new(card: u32) -> Result<Self> {
         Ok(Self {
@@ -354,9 +354,9 @@ impl Scalar {
     }
 }
 
-impl_type! { Uninterpreted }
+impl_type! { UninterpretedType, uninterpreted}
 
-impl Uninterpreted {
+impl UninterpretedType {
     /// Construct a new uninterpreted type.
     pub fn new() -> Result<Self> {
         Ok(Self {
@@ -365,9 +365,9 @@ impl Uninterpreted {
     }
 }
 
-impl_type! { Tuple }
+impl_type! { TupleType, tuple }
 
-impl Tuple {
+impl TupleType {
     /// Construct a new tuple type.
     pub fn new<I, T>(types: I) -> Result<Self>
     where
@@ -382,11 +382,11 @@ impl Tuple {
     }
 }
 
-impl ChildType for Tuple {}
+impl ChildType for TupleType {}
 
-impl_type! { Function }
+impl_type! { FunctionType, function }
 
-impl Function {
+impl FunctionType {
     /// Construct a new function type with `domain` as the domain and `range` as
     /// the range.
     pub fn new<I, T>(domain: I, range: T) -> Result<Self>
@@ -403,18 +403,18 @@ impl Function {
     }
 }
 
-impl ChildType for Function {}
+impl ChildType for FunctionType {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Type {
-    Bool(Bool),
-    Integer(Integer),
-    Real(Real),
-    BitVector(BitVector),
-    Scalar(Scalar),
-    Uninterpreted(Uninterpreted),
-    Tuple(Tuple),
-    Function(Function),
+    BoolType(BoolType),
+    IntegerType(IntegerType),
+    RealType(RealType),
+    BitVectorType(BitVectorType),
+    ScalarType(ScalarType),
+    UninterpretedType(UninterpretedType),
+    TupleType(TupleType),
+    FunctionType(FunctionType),
 }
 
 impl Type {
@@ -456,21 +456,21 @@ impl TryFrom<type_t> for Type {
 
     fn try_from(value: type_t) -> Result<Self> {
         if yices_try! { yices_type_is_bool(value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Bool(Bool::from(value)))
+            Ok(Type::BoolType(BoolType::from(value)))
         } else if yices_try! { yices_type_is_int(value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Integer(Integer::from(value)))
+            Ok(Type::IntegerType(IntegerType::from(value)))
         } else if yices_try! { yices_type_is_real(value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Real(Real::from(value)))
+            Ok(Type::RealType(RealType::from(value)))
         } else if yices_try! { yices_type_is_bitvector(value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::BitVector(BitVector::from(value)))
+            Ok(Type::BitVectorType(BitVectorType::from(value)))
         } else if yices_try! { yices_type_is_scalar(value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Scalar(Scalar::from(value)))
+            Ok(Type::ScalarType(ScalarType::from(value)))
         } else if yices_try! { yices_type_is_uninterpreted(value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Uninterpreted(Uninterpreted::from(value)))
+            Ok(Type::UninterpretedType(UninterpretedType::from(value)))
         } else if yices_try! { yices_type_is_tuple(value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Tuple(Tuple::from(value)))
+            Ok(Type::TupleType(TupleType::from(value)))
         } else if yices_try! { yices_type_is_function(value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Function(Function::from(value)))
+            Ok(Type::FunctionType(FunctionType::from(value)))
         } else {
             Err(Error::TypeFromType)
         }
@@ -482,21 +482,21 @@ impl TryFrom<&type_t> for Type {
 
     fn try_from(value: &type_t) -> Result<Self> {
         if yices_try! { yices_type_is_bool(*value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Bool(Bool::from(value)))
+            Ok(Type::BoolType(BoolType::from(value)))
         } else if yices_try! { yices_type_is_int(*value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Integer(Integer::from(value)))
+            Ok(Type::IntegerType(IntegerType::from(value)))
         } else if yices_try! { yices_type_is_real(*value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Real(Real::from(value)))
+            Ok(Type::RealType(RealType::from(value)))
         } else if yices_try! { yices_type_is_bitvector(*value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::BitVector(BitVector::from(value)))
+            Ok(Type::BitVectorType(BitVectorType::from(value)))
         } else if yices_try! { yices_type_is_scalar(*value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Scalar(Scalar::from(value)))
+            Ok(Type::ScalarType(ScalarType::from(value)))
         } else if yices_try! { yices_type_is_uninterpreted(*value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Uninterpreted(Uninterpreted::from(value)))
+            Ok(Type::UninterpretedType(UninterpretedType::from(value)))
         } else if yices_try! { yices_type_is_tuple(*value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Tuple(Tuple::from(value)))
+            Ok(Type::TupleType(TupleType::from(value)))
         } else if yices_try! { yices_type_is_function(*value) }.is_ok_and(|b| b != 0) {
-            Ok(Type::Function(Function::from(value)))
+            Ok(Type::FunctionType(FunctionType::from(value)))
         } else {
             Err(Error::TypeFromType)
         }
@@ -506,14 +506,14 @@ impl TryFrom<&type_t> for Type {
 impl From<Type> for type_t {
     fn from(value: Type) -> Self {
         match value {
-            Type::Bool(typ) => typ.inner_type(),
-            Type::Integer(typ) => typ.inner_type(),
-            Type::Real(typ) => typ.inner_type(),
-            Type::BitVector(typ) => typ.inner_type(),
-            Type::Scalar(typ) => typ.inner_type(),
-            Type::Uninterpreted(typ) => typ.inner_type(),
-            Type::Tuple(typ) => typ.inner_type(),
-            Type::Function(typ) => typ.inner_type(),
+            Type::BoolType(typ) => typ.inner_type(),
+            Type::IntegerType(typ) => typ.inner_type(),
+            Type::RealType(typ) => typ.inner_type(),
+            Type::BitVectorType(typ) => typ.inner_type(),
+            Type::ScalarType(typ) => typ.inner_type(),
+            Type::UninterpretedType(typ) => typ.inner_type(),
+            Type::TupleType(typ) => typ.inner_type(),
+            Type::FunctionType(typ) => typ.inner_type(),
         }
     }
 }
@@ -521,14 +521,14 @@ impl From<Type> for type_t {
 impl From<&Type> for type_t {
     fn from(value: &Type) -> Self {
         match value {
-            Type::Bool(typ) => typ.inner_type(),
-            Type::Integer(typ) => typ.inner_type(),
-            Type::Real(typ) => typ.inner_type(),
-            Type::BitVector(typ) => typ.inner_type(),
-            Type::Scalar(typ) => typ.inner_type(),
-            Type::Uninterpreted(typ) => typ.inner_type(),
-            Type::Tuple(typ) => typ.inner_type(),
-            Type::Function(typ) => typ.inner_type(),
+            Type::BoolType(typ) => typ.inner_type(),
+            Type::IntegerType(typ) => typ.inner_type(),
+            Type::RealType(typ) => typ.inner_type(),
+            Type::BitVectorType(typ) => typ.inner_type(),
+            Type::ScalarType(typ) => typ.inner_type(),
+            Type::UninterpretedType(typ) => typ.inner_type(),
+            Type::TupleType(typ) => typ.inner_type(),
+            Type::FunctionType(typ) => typ.inner_type(),
         }
     }
 }

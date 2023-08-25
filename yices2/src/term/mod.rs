@@ -101,7 +101,7 @@ pub trait NamedTerm: InnerTerm {
     }
 }
 
-pub trait Gc: InnerTerm {
+pub trait GcTerm: InnerTerm {
     fn incref(&self) -> Result<()> {
         yices_try! { yices_incref_term(self.inner_term()) }.and_then(|r| {
             if r < 0 {
@@ -151,7 +151,7 @@ macro_rules! impl_term {
             }
 
             impl NamedTerm for $id {}
-            impl Gc for $id {}
+            impl GcTerm for $id {}
 
             impl From<term_t> for $id {
                 fn from(term: term_t) -> Self {
