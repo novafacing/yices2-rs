@@ -1152,11 +1152,18 @@ impl Context {
         Ok(yices! { yices_context_status(self.context) })
     }
 
-    pub fn assert<I>(&self, formulas: I) -> Result<()>
+    pub fn assert<I, T>(&self, formulas: I) -> Result<()>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let formulas: Vec<_> = formulas.into_iter().map(|t| t.into()).collect();
+        let formulas: Vec<_> = formulas
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         yices! { yices_assert_formulas(self.context, formulas.len() as u32, formulas.as_ptr()) };
 
@@ -1215,23 +1222,31 @@ impl Context {
         }
     }
 
-    pub fn check_with_assumptions<I>(&self, terms: I) -> Result<Status>
+    pub fn check_with_assumptions<I, T>(&self, terms: I) -> Result<Status>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
         self.check_with_assumptions_and_params(None, terms)
     }
 
-    pub fn check_with_assumptions_and_params<I>(
+    pub fn check_with_assumptions_and_params<I, T>(
         &self,
         params: Option<&Params>,
         terms: I,
     ) -> Result<Status>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
         let params = params.map_or(null(), |p| p.params);
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         Ok(
             yices! { yices_check_context_with_assumptions(self.context, params, terms.len() as u32, terms.as_ptr()) },

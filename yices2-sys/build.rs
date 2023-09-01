@@ -467,7 +467,7 @@ fn main() -> Result<()> {
     println!("cargo:rustc-link-lib=static=yices");
     println!("cargo:rustc-link-lib=static=gmp");
     println!("cargo:rustc-link-lib=static=cudd");
-    println!("cargo:rustc-link-lib=static=poly");
+    println!("cargo:rustc-link-lib=static=picpoly");
 
     generate_bindings()?;
 

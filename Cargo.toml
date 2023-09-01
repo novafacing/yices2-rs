@@ -10,6 +10,7 @@ readme = "README.md"
 repository = "https://github.com/novafacing/yices2-rs"
 
 [workspace]
+resolver = "2"
 members = ["yices2-sys", "yices2"]
 default-members = ["yices2-sys", "yices2"]
 

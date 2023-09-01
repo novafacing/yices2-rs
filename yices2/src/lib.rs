@@ -14,19 +14,19 @@
 //! fn main() -> Result<(), Error> {
 //!   let config = Config::with_defaults_for_logics([Logic::QF_LRA])?;
 //!   let ctx = Context::with_config(&config)?;
-//!   let x = Uninterpreted::with_name(RealType::new()?.into(), "x")?;
-//!   let y = Uninterpreted::with_name(RealType::new()?.into(), "y")?;
-//!   let t1 = Add::new(x.into(), y.into())?;
-//!   let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
-//!   let t3 = Or::new([
-//!       ArithmeticLessThanAtom::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
-//!       ArithmeticLessThanAtom::new(y.into(), ArithmeticConstant::zero()?.into())?.into(),
-//!   ])?;
-//!   ctx.assert([t2.into(), t3.into()])?;
+//!   let x = Uninterpreted::with_name(RealType::new()?, "x")?;
+//!   let y = Uninterpreted::with_name(RealType::new()?, "y")?;
+//!   let t1 = Add::new(x, y)?;
+//!   let t2: Term = ArithmeticGreaterThanAtom::new(t1, ArithmeticConstant::zero()?)?.into();
+//!   let t3: Term = Or::new([
+//!       ArithmeticLessThanAtom::new(x, ArithmeticConstant::zero()?)?,
+//!       ArithmeticLessThanAtom::new(y, ArithmeticConstant::zero()?)?,
+//!   ])?.into();
+//!   ctx.assert([t2, t3])?;
 //!   let status = ctx.check()?;
 //!   assert_eq!(status, Status::STATUS_SAT);
-//!   let xv = ctx.model()?.get_double(&x.into())?;
-//!   let yv = ctx.model()?.get_double(&y.into())?;
+//!   let xv = ctx.model()?.get_double(x)?;
+//!   let yv = ctx.model()?.get_double(y)?;
 //!   assert_eq!(xv, 2.0);
 //!   assert_eq!(yv, -1.0);
 //!
@@ -44,15 +44,15 @@
 //!   let ctx = Context::with_config(&config)?;
 //!   let bv = BitVectorType::new(32)?;
 //!   let bvc = BitVectorConstant::from_hex_with_name("00000000", "c")?;
-//!   let x = Uninterpreted::with_name(bv.into(), "x")?;
-//!   let y = Uninterpreted::with_name(bv.into(), "y")?;
-//!   let a1 = BitVectorSignedGreaterThanAtom::new(x.into(), bvc.into())?;
-//!   let a2 = BitVectorSignedGreaterThanAtom::new(y.into(), bvc.into())?;
-//!   let a3 = BitVectorSignedLessThanAtom::new(
-//!       BitVectorAdd::new(x.into(), y.into())?.into(),
-//!       x.into(),
-//!   )?;
-//!   ctx.assert([a1.into(), a2.into(), a3.into()])?;
+//!   let x = Uninterpreted::with_name(bv, "x")?;
+//!   let y = Uninterpreted::with_name(bv, "y")?;
+//!   let a1: Term = BitVectorSignedGreaterThanAtom::new(x, bvc)?.into();
+//!   let a2: Term = BitVectorSignedGreaterThanAtom::new(y, bvc)?.into();
+//!   let a3: Term = BitVectorSignedLessThanAtom::new(
+//!       BitVectorAdd::new(x, y)?,
+//!       x,
+//!   )?.into();
+//!   ctx.assert([a1, a2, a3])?;
 //!
 //!   assert_eq!(ctx.check()?, Status::STATUS_SAT);
 //!
@@ -189,7 +189,7 @@ mod ctor_test {
     #[test]
     /// mcsat_example.c test case
     fn test_example_mcsat() -> Result<()> {
-        let x = Uninterpreted::new(RealType::new()?.into())?;
+        let x = Uninterpreted::new(RealType::new()?)?;
         x.set_name("x")?;
         let p: Term = "(= (* x x) 2)".parse()?;
         let config = Config::with_defaults_for_logics([Logic::QF_NRA])?;
@@ -198,7 +198,7 @@ mod ctor_test {
         let status = ctx.check()?;
         assert_eq!(status, Status::STATUS_SAT);
         let model = ctx.model()?;
-        let dv = model.get_double(&x.into())?;
+        let dv = model.get_double(x)?;
         // I mean yeah...float stuff
         assert_eq!(dv * dv, 1.9999999999999996);
         Ok(())
@@ -212,37 +212,37 @@ mod ctor_test {
         let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
 
-        let x = Uninterpreted::new(IntegerType::new()?.into())?;
+        let x = Uninterpreted::new(IntegerType::new()?)?;
         x.set_name("x")?;
 
         let t1 = IfThenElse::new(
-            Equal::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
-            ArithmeticConstant::zero()?.into(),
-            ArithmeticConstant::from_i32(-1)?.into(),
+            Equal::new(x, ArithmeticConstant::zero()?)?,
+            ArithmeticConstant::zero()?,
+            ArithmeticConstant::from_i32(-1)?,
         )?;
-        let t2 = Sub::new(x.into(), t1.into())?;
-        let t3 = Add::new(x.into(), t1.into())?;
-        let arbitrary = Mul::new(Square::new(t2.into())?.into(), t3.into())?;
+        let t2 = Sub::new(x, t1)?;
+        let t3 = Add::new(x, t1)?;
+        let arbitrary = Mul::new(Square::new(t2)?, t3)?;
 
         let zero = ArithmeticConstant::zero()?;
         let alternate_zero = IfThenElse::new(
-            Equal::new(arbitrary.into(), zero.into())?.into(),
-            zero.into(),
-            IntegerDivision::new(zero.into(), arbitrary.into())?.into(),
+            Equal::new(arbitrary, zero)?,
+            zero,
+            IntegerDivision::new(zero, arbitrary)?,
         )?;
         let alternate_one = IfThenElse::new(
-            Equal::new(arbitrary.into(), zero.into())?.into(),
-            arbitrary.into(),
-            IntegerDivision::new(arbitrary.into(), arbitrary.into())?.into(),
+            Equal::new(arbitrary, zero)?,
+            arbitrary,
+            IntegerDivision::new(arbitrary, arbitrary)?,
         )?;
         let one = IfThenElse::new(
-            Equal::new(alternate_zero.into(), arbitrary.into())?.into(),
-            ArithmeticConstant::from_i32(1)?.into(),
-            alternate_one.into(),
+            Equal::new(alternate_zero, arbitrary)?,
+            ArithmeticConstant::from_i32(1)?,
+            alternate_one,
         )?;
-        let one_eq_zero = ArithmeticEqualAtom::new(ArithmeticConstant::zero()?.into(), one.into())?;
+        let one_eq_zero = ArithmeticEqualAtom::new(ArithmeticConstant::zero()?, one)?;
 
-        ctx.assert([one_eq_zero.into()])?;
+        ctx.assert([one_eq_zero])?;
 
         let status = ctx.check()?;
 
@@ -258,18 +258,18 @@ mod ctor_test {
         let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
 
-        let x = Uninterpreted::new(IntegerType::new()?.into())?;
+        let x = Uninterpreted::new(IntegerType::new()?)?;
         x.set_name("x")?;
 
         let one = ArithmeticConstant::from_i32(1)?;
         let ite_term = IfThenElse::new(
-            ArithmeticGreaterThanEqualAtom::new(one.into(), x.into())?.into(),
-            ArithmeticConstant::from_i32(-1)?.into(),
-            one.into(),
+            ArithmeticGreaterThanEqualAtom::new(one, x)?,
+            ArithmeticConstant::from_i32(-1)?,
+            one,
         )?;
-        let abs_term = AbsoluteValue::new(ite_term.into())?;
+        let abs_term = AbsoluteValue::new(ite_term)?;
 
-        ctx.assert([Equal::new(abs_term.into(), one.into())?.into()])?;
+        ctx.assert([Equal::new(abs_term, one)?])?;
 
         let status = ctx.check()?;
 
@@ -285,7 +285,7 @@ mod ctor_test {
         let bool_type = BoolType::new()?;
 
         for _ in 0..255 {
-            let t = Uninterpreted::new(bool_type.into())?;
+            let t = Uninterpreted::new(bool_type)?;
             t.incref()?;
         }
 
@@ -298,12 +298,12 @@ mod ctor_test {
 
         let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
-        let x = Uninterpreted::new(IntegerType::new()?.into())?;
+        let x = Uninterpreted::new(IntegerType::new()?)?;
         x.set_name("x")?;
 
-        let power_term = Power::new(Square::new(x.into())?.into(), 2)?;
-        let leq_term = ArithmeticLessThanEqualAtom::new(power_term.into(), x.into())?;
-        ctx.assert([leq_term.into()])?;
+        let power_term = Power::new(Square::new(x)?, 2)?;
+        let leq_term = ArithmeticLessThanEqualAtom::new(power_term, x)?;
+        ctx.assert([leq_term])?;
         assert_eq!(ctx.check()?, Status::STATUS_SAT);
 
         Ok(())
@@ -316,10 +316,9 @@ mod ctor_test {
         let config = Config::with_defaults_for_logics([Logic::QF_NIA])?;
         let ctx = Context::with_config(&config)?;
         let val = ArithmeticConstant::from_i64(-8)?;
-        let val_sqrt = IntegerDivision::new(val.into(), val.into())?;
-        let eq_one =
-            ArithmeticEqualAtom::new(val_sqrt.into(), ArithmeticConstant::from_i64(1)?.into())?;
-        ctx.assert([eq_one.into()])?;
+        let val_sqrt = IntegerDivision::new(val, val)?;
+        let eq_one = ArithmeticEqualAtom::new(val_sqrt, ArithmeticConstant::from_i64(1)?)?;
+        ctx.assert([eq_one])?;
         assert_eq!(ctx.check()?, Status::STATUS_SAT);
 
         Ok(())
@@ -331,15 +330,14 @@ mod ctor_test {
 
         let config = Config::with_defaults_for_logics([Logic::QF_LIA])?;
         let ctx = Context::with_config(&config)?;
-        let x = Uninterpreted::new(IntegerType::new()?.into())?;
+        let x = Uninterpreted::new(IntegerType::new()?)?;
         x.set_name("x")?;
-        let r_1 = IntegerDivision::new(x.into(), ArithmeticConstant::from_i32(2)?.into())?;
-        let check_zero_t1 =
-            ArithmeticEqualAtom::new(ArithmeticConstant::zero()?.into(), r_1.into())?;
-        ctx.assert([check_zero_t1.into()])?;
+        let r_1 = IntegerDivision::new(x, ArithmeticConstant::from_i32(2)?)?;
+        let check_zero_t1 = ArithmeticEqualAtom::new(ArithmeticConstant::zero()?, r_1)?;
+        ctx.assert([check_zero_t1])?;
         assert_eq!(ctx.check()?, Status::STATUS_SAT);
         let mdl = ctx.model_with_eliminated()?;
-        let check_mdl = mdl.get_bool(&check_zero_t1.into())?;
+        let check_mdl = mdl.get_bool(check_zero_t1)?;
         assert!(check_mdl);
 
         Ok(())
@@ -352,19 +350,20 @@ mod ctor_test {
 
         let config = Config::with_defaults_for_logics([Logic::QF_LRA])?;
         let ctx = Context::with_config(&config)?;
-        let x = Uninterpreted::with_name(RealType::new()?.into(), "x")?;
-        let y = Uninterpreted::with_name(RealType::new()?.into(), "y")?;
-        let t1 = Add::new(x.into(), y.into())?;
-        let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
-        let t3 = Or::new([
-            ArithmeticLessThanAtom::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
-            ArithmeticLessThanAtom::new(y.into(), ArithmeticConstant::zero()?.into())?.into(),
-        ])?;
-        ctx.assert([t2.into(), t3.into()])?;
+        let x = Uninterpreted::with_name(RealType::new()?, "x")?;
+        let y = Uninterpreted::with_name(RealType::new()?, "y")?;
+        let t1 = Add::new(x, y)?;
+        let t2: Term = ArithmeticGreaterThanAtom::new(t1, ArithmeticConstant::zero()?)?.into();
+        let t3: Term = Or::new([
+            ArithmeticLessThanAtom::new(x, ArithmeticConstant::zero()?)?,
+            ArithmeticLessThanAtom::new(y, ArithmeticConstant::zero()?)?,
+        ])?
+        .into();
+        ctx.assert([t2, t3])?;
         let status = ctx.check()?;
         assert_eq!(status, Status::STATUS_SAT);
-        let xv = ctx.model()?.get_double(&x.into())?;
-        let yv = ctx.model()?.get_double(&y.into())?;
+        let xv = ctx.model()?.get_double(x)?;
+        let yv = ctx.model()?.get_double(y)?;
         assert_eq!(xv, 2.0);
         assert_eq!(yv, -1.0);
         Ok(())
@@ -378,15 +377,12 @@ mod ctor_test {
         let ctx = Context::with_config(&config)?;
         let bv = BitVectorType::new(32)?;
         let bvc = BitVectorConstant::from_hex_with_name("00000000", "c")?;
-        let x = Uninterpreted::with_name(bv.into(), "x")?;
-        let y = Uninterpreted::with_name(bv.into(), "y")?;
-        let a1 = BitVectorSignedGreaterThanAtom::new(x.into(), bvc.into())?;
-        let a2 = BitVectorSignedGreaterThanAtom::new(y.into(), bvc.into())?;
-        let a3 = BitVectorSignedLessThanAtom::new(
-            BitVectorAdd::new(x.into(), y.into())?.into(),
-            x.into(),
-        )?;
-        ctx.assert([a1.into(), a2.into(), a3.into()])?;
+        let x = Uninterpreted::with_name(bv, "x")?;
+        let y = Uninterpreted::with_name(bv, "y")?;
+        let a1: Term = BitVectorSignedGreaterThanAtom::new(x, bvc)?.into();
+        let a2: Term = BitVectorSignedGreaterThanAtom::new(y, bvc)?.into();
+        let a3: Term = BitVectorSignedLessThanAtom::new(BitVectorAdd::new(x, y)?, x)?.into();
+        ctx.assert([a1, a2, a3])?;
 
         assert_eq!(ctx.check()?, Status::STATUS_SAT);
         Ok(())

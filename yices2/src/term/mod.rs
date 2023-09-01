@@ -76,7 +76,7 @@ pub trait NamedTerm: InnerTerm {
         Self: Sized,
     {
         let c_str = CString::new(name).map_err(|e| Error::External(e.into()))?;
-        let ok = yices! { yices_set_term_name(self.inner_term(), c_str.as_ptr() as *const i8) };
+        let ok = yices! { yices_set_term_name(self.inner_term(), c_str.as_ptr()) };
 
         if ok < 0 {
             Err(Error::TermSetName {
@@ -239,7 +239,11 @@ impl_term! { Any }
 impl_term! { Uninterpreted }
 
 impl Uninterpreted {
-    pub fn new(typ: Type) -> Result<Self> {
+    pub fn new<T>(typ: T) -> Result<Self>
+    where
+        T: Into<Type>,
+    {
+        let typ: Type = typ.into();
         let ok = yices! { yices_new_uninterpreted_term(typ.into()) };
 
         if ok < 0 {
@@ -249,7 +253,11 @@ impl Uninterpreted {
         }
     }
 
-    pub fn with_name(typ: Type, name: &str) -> Result<Self> {
+    pub fn with_name<T>(typ: T, name: &str) -> Result<Self>
+    where
+        T: Into<Type>,
+    {
+        let typ: Type = typ.into();
         let s = Self::new(typ)?;
         s.set_name(name)?;
         Ok(s)
@@ -259,7 +267,11 @@ impl Uninterpreted {
 impl_term! { Variable }
 
 impl Variable {
-    pub fn new(typ: Type) -> Result<Self> {
+    pub fn new<T>(typ: T) -> Result<Self>
+    where
+        T: Into<Type>,
+    {
+        let typ: Type = typ.into();
         let ok = yices! { yices_new_variable(typ.into()) };
 
         if ok < 0 {
@@ -269,7 +281,11 @@ impl Variable {
         }
     }
 
-    pub fn with_name(typ: Type, name: &str) -> Result<Self> {
+    pub fn with_name<T>(typ: T, name: &str) -> Result<Self>
+    where
+        T: Into<Type>,
+    {
+        let typ: Type = typ.into();
         let s = Self::new(typ)?;
         s.set_name(name)?;
         Ok(s)
@@ -280,7 +296,11 @@ impl_term! { Constant }
 
 impl Constant {
     /// typ must either be scalar or uninterpreted
-    pub fn new(typ: Type, index: i32) -> Result<Self> {
+    pub fn new<T>(typ: T, index: i32) -> Result<Self>
+    where
+        T: Into<Type>,
+    {
+        let typ: Type = typ.into();
         let ok = yices! { yices_constant(typ.into(), index) };
 
         if ok < 0 {
@@ -290,7 +310,11 @@ impl Constant {
         }
     }
 
-    pub fn with_name(typ: Type, index: i32, name: &str) -> Result<Self> {
+    pub fn with_name<T>(typ: T, index: i32, name: &str) -> Result<Self>
+    where
+        T: Into<Type>,
+    {
+        let typ: Type = typ.into();
         let s = Self::new(typ, index)?;
         s.set_name(name)?;
         Ok(s)
@@ -300,7 +324,15 @@ impl Constant {
 impl_term! { IfThenElse }
 
 impl IfThenElse {
-    pub fn new(cond: Term, then: Term, els: Term) -> Result<Self> {
+    pub fn new<T, U, V>(cond: T, then: U, els: V) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+        V: Into<Term>,
+    {
+        let cond: Term = cond.into();
+        let then: Term = then.into();
+        let els: Term = els.into();
         let ok = yices! { yices_ite(cond.into(), then.into(), els.into()) };
 
         if ok < 0 {
@@ -314,7 +346,13 @@ impl IfThenElse {
 impl_term! { Equal }
 
 impl Equal {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_eq(left.into(), right.into()) };
 
         if ok < 0 {
@@ -328,7 +366,14 @@ impl Equal {
 impl_term! { NotEqual }
 
 impl NotEqual {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
+
         let ok = yices! { yices_neq(left.into(), right.into()) };
 
         if ok < 0 {
@@ -342,12 +387,19 @@ impl NotEqual {
 impl_term! { Distinct }
 
 impl Distinct {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
         // terms may be modified by this call
-        let mut terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let mut terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_distinct(terms.len() as u32, terms.as_mut_ptr()) };
 
@@ -362,11 +414,19 @@ impl Distinct {
 impl_term! { Application }
 
 impl Application {
-    pub fn new<I>(fun: Term, args: I) -> Result<Self>
+    pub fn new<I, T>(fun: T, args: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = args.into_iter().map(|t| t.into()).collect();
+        let fun: Term = fun.into();
+        let terms: Vec<_> = args
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_application(fun.into(), terms.len() as u32, terms.as_ptr()) };
 
@@ -381,11 +441,18 @@ impl Application {
 impl_term! { Tuple }
 
 impl Tuple {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_tuple(terms.len() as u32, terms.as_ptr()) };
 
@@ -400,7 +467,11 @@ impl Tuple {
 impl_term! { Select }
 
 impl Select {
-    pub fn new(tuple: Term, index: u32) -> Result<Self> {
+    pub fn new<T>(tuple: T, index: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let tuple: Term = tuple.into();
         let ok = yices! { yices_select(index, tuple.into()) };
 
         if ok < 0 {
@@ -414,7 +485,12 @@ impl Select {
 impl_term! { TupleUpdate }
 
 impl TupleUpdate {
-    pub fn new(tuple: Term, index: u32, value: Term) -> Result<Self> {
+    pub fn new<T>(tuple: T, index: u32, value: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let tuple: Term = tuple.into();
+        let value: Term = value.into();
         let ok = yices! { yices_tuple_update(tuple.into(), index, value.into()) };
 
         if ok < 0 {
@@ -428,11 +504,20 @@ impl TupleUpdate {
 impl_term! { FunctionUpdate }
 
 impl FunctionUpdate {
-    pub fn new<I>(fun: Term, args: I, value: Term) -> Result<Self>
+    pub fn new<I, T>(fun: T, args: I, value: T) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms = args.into_iter().map(|t| t.into()).collect::<Vec<_>>();
+        let fun: Term = fun.into();
+        let value: Term = value.into();
+        let terms = args
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect::<Vec<_>>();
 
         let ok =
             yices! { yices_update(fun.into(), terms.len() as u32, terms.as_ptr(), value.into()) };
@@ -448,11 +533,19 @@ impl FunctionUpdate {
 impl_term! { ForAll }
 
 impl ForAll {
-    pub fn new<I>(vars: I, body: Term) -> Result<Self>
+    pub fn new<I, T>(vars: I, body: T) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let mut terms = vars.into_iter().map(|t| t.into()).collect::<Vec<_>>();
+        let body: Term = body.into();
+        let mut terms = vars
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect::<Vec<_>>();
 
         let ok = yices! { yices_forall(terms.len() as u32, terms.as_mut_ptr(), body.into()) };
 
@@ -467,11 +560,19 @@ impl ForAll {
 impl_term! { Exists }
 
 impl Exists {
-    pub fn new<I>(vars: I, body: Term) -> Result<Self>
+    pub fn new<I, T>(vars: I, body: T) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let mut terms = vars.into_iter().map(|t| t.into()).collect::<Vec<_>>();
+        let body: Term = body.into();
+        let mut terms = vars
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect::<Vec<_>>();
 
         let ok = yices! { yices_exists(terms.len() as u32, terms.as_mut_ptr(), body.into()) };
 
@@ -486,11 +587,19 @@ impl Exists {
 impl_term! { Lambda }
 
 impl Lambda {
-    pub fn new<I>(vars: I, body: Term) -> Result<Self>
+    pub fn new<I, T>(vars: I, body: T) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms = vars.into_iter().map(|t| t.into()).collect::<Vec<_>>();
+        let body: Term = body.into();
+        let terms = vars
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect::<Vec<_>>();
 
         let ok = yices! { yices_lambda(terms.len() as u32, terms.as_ptr(), body.into()) };
 
@@ -529,7 +638,11 @@ impl BooleanConstant {
 impl_term! { Not }
 
 impl Not {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_not(term.into()) };
 
         if ok < 0 {
@@ -543,11 +656,18 @@ impl Not {
 impl_term! { And }
 
 impl And {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let mut terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let mut terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_and(terms.len() as u32, terms.as_mut_ptr()) };
 
@@ -562,11 +682,18 @@ impl And {
 impl_term! { Or }
 
 impl Or {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let mut terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let mut terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_or(terms.len() as u32, terms.as_mut_ptr()) };
 
@@ -581,11 +708,18 @@ impl Or {
 impl_term! { Xor }
 
 impl Xor {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let mut terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let mut terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_xor(terms.len() as u32, terms.as_mut_ptr()) };
 
@@ -600,7 +734,13 @@ impl Xor {
 impl_term! { Iff }
 
 impl Iff {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_iff(left.into(), right.into()) };
 
         if ok < 0 {
@@ -614,7 +754,14 @@ impl Iff {
 impl_term! { Implies }
 
 impl Implies {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
+
         let ok = yices! { yices_implies(left.into(), right.into()) };
 
         if ok < 0 {
@@ -708,13 +855,15 @@ impl ArithmeticConstant {
         Ok(s)
     }
 
-    pub fn from_i32_terms<I>(terms: I) -> Result<Self>
+    pub fn from_i32_terms<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = (Term, i32)>,
+        I: IntoIterator<Item = (T, i32)>,
+        T: Into<Term>,
     {
         let (terms, coefficients): (Vec<term_t>, Vec<i32>) = terms
             .into_iter()
             .map(|(term, coefficient)| {
+                let term: Term = term.into();
                 let term: term_t = term.into();
                 (term, coefficient)
             })
@@ -730,22 +879,25 @@ impl ArithmeticConstant {
         }
     }
 
-    pub fn from_i32_terms_with_name<I>(terms: I, name: &str) -> Result<Self>
+    pub fn from_i32_terms_with_name<I, T>(terms: I, name: &str) -> Result<Self>
     where
-        I: IntoIterator<Item = (Term, i32)>,
+        I: IntoIterator<Item = (T, i32)>,
+        T: Into<Term>,
     {
         let s = Self::from_i32_terms(terms)?;
         s.set_name(name)?;
         Ok(s)
     }
 
-    pub fn from_i64_terms<I>(terms: I) -> Result<Self>
+    pub fn from_i64_terms<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = (Term, i64)>,
+        I: IntoIterator<Item = (T, i64)>,
+        T: Into<Term>,
     {
         let (terms, coefficients): (Vec<term_t>, Vec<i64>) = terms
             .into_iter()
             .map(|(term, coefficient)| {
+                let term: Term = term.into();
                 let term: term_t = term.into();
                 (term, coefficient)
             })
@@ -761,21 +913,24 @@ impl ArithmeticConstant {
         }
     }
 
-    pub fn from_i64_terms_with_name<I>(terms: I, name: &str) -> Result<Self>
+    pub fn from_i64_terms_with_name<I, T>(terms: I, name: &str) -> Result<Self>
     where
-        I: IntoIterator<Item = (Term, i64)>,
+        I: IntoIterator<Item = (T, i64)>,
+        T: Into<Term>,
     {
         let s = Self::from_i64_terms(terms)?;
         s.set_name(name)?;
         Ok(s)
     }
 
-    pub fn from_rational32_terms<I>(terms: I) -> Result<Self>
+    pub fn from_rational32_terms<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = (Term, i32, u32)>,
+        I: IntoIterator<Item = (T, i32, u32)>,
+        T: Into<Term>,
     {
         let (terms, numerators, denominators): (Vec<term_t>, Vec<i32>, Vec<u32>) =
             multiunzip(terms.into_iter().map(|(term, numerator, denominator)| {
+                let term: Term = term.into();
                 let term: term_t = term.into();
                 (term, numerator, denominator)
             }));
@@ -789,21 +944,24 @@ impl ArithmeticConstant {
         }
     }
 
-    pub fn from_rational32_terms_with_name<I>(terms: I, name: &str) -> Result<Self>
+    pub fn from_rational32_terms_with_name<I, T>(terms: I, name: &str) -> Result<Self>
     where
-        I: IntoIterator<Item = (Term, i32, u32)>,
+        I: IntoIterator<Item = (T, i32, u32)>,
+        T: Into<Term>,
     {
         let s = Self::from_rational32_terms(terms)?;
         s.set_name(name)?;
         Ok(s)
     }
 
-    pub fn from_rational64_terms<I>(terms: I) -> Result<Self>
+    pub fn from_rational64_terms<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = (Term, i64, u64)>,
+        I: IntoIterator<Item = (T, i64, u64)>,
+        T: Into<Term>,
     {
         let (terms, numerators, denominators): (Vec<term_t>, Vec<i64>, Vec<u64>) =
             multiunzip(terms.into_iter().map(|(term, numerator, denominator)| {
+                let term: Term = term.into();
                 let term: term_t = term.into();
                 (term, numerator, denominator)
             }));
@@ -817,9 +975,10 @@ impl ArithmeticConstant {
         }
     }
 
-    pub fn from_rational64_terms_with_name<I>(terms: I, name: &str) -> Result<Self>
+    pub fn from_rational64_terms_with_name<I, T>(terms: I, name: &str) -> Result<Self>
     where
-        I: IntoIterator<Item = (Term, i64, u64)>,
+        I: IntoIterator<Item = (T, i64, u64)>,
+        T: Into<Term>,
     {
         let s = Self::from_rational64_terms(terms)?;
         s.set_name(name)?;
@@ -858,7 +1017,13 @@ impl FromStr for ArithmeticConstant {
 impl_term! { Add }
 
 impl Add {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_add(left.into(), right.into()) };
 
         if ok < 0 {
@@ -872,7 +1037,13 @@ impl Add {
 impl_term! { Sub }
 
 impl Sub {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_sub(left.into(), right.into()) };
 
         if ok < 0 {
@@ -886,7 +1057,12 @@ impl Sub {
 impl_term! { Neg }
 
 impl Neg {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
+
         let ok = yices! { yices_neg(term.into()) };
 
         if ok < 0 {
@@ -900,7 +1076,13 @@ impl Neg {
 impl_term! { Mul }
 
 impl Mul {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_mul(left.into(), right.into()) };
 
         if ok < 0 {
@@ -914,7 +1096,11 @@ impl Mul {
 impl_term! { Square }
 
 impl Square {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_square(term.into()) };
 
         if ok < 0 {
@@ -928,7 +1114,11 @@ impl Square {
 impl_term! { Power }
 
 impl Power {
-    pub fn new(base: Term, exponent: u32) -> Result<Self> {
+    pub fn new<T>(base: T, exponent: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let base: Term = base.into();
         let ok = yices! { yices_power(base.into(), exponent) };
 
         if ok < 0 {
@@ -942,7 +1132,13 @@ impl Power {
 impl_term! { Division }
 
 impl Division {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_division(left.into(), right.into()) };
 
         if ok < 0 {
@@ -956,11 +1152,18 @@ impl Division {
 impl_term! { Sum }
 
 impl Sum {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_sum(terms.len() as u32, terms.as_ptr()) };
 
@@ -975,11 +1178,18 @@ impl Sum {
 impl_term! { Product }
 
 impl Product {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_product(terms.len() as u32, terms.as_ptr()) };
 
@@ -994,7 +1204,11 @@ impl Product {
 impl_term! { AbsoluteValue }
 
 impl AbsoluteValue {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_abs(term.into()) };
 
         if ok < 0 {
@@ -1008,7 +1222,11 @@ impl AbsoluteValue {
 impl_term! { Floor }
 
 impl Floor {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_floor(term.into()) };
 
         if ok < 0 {
@@ -1022,7 +1240,11 @@ impl Floor {
 impl_term! { Ceiling }
 
 impl Ceiling {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_ceil(term.into()) };
 
         if ok < 0 {
@@ -1036,7 +1258,13 @@ impl Ceiling {
 impl_term! { IntegerDivision }
 
 impl IntegerDivision {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_idiv(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1050,7 +1278,13 @@ impl IntegerDivision {
 impl_term! { IntegerModulo }
 
 impl IntegerModulo {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_imod(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1064,7 +1298,13 @@ impl IntegerModulo {
 impl_term! { ArithmeticEqualAtom }
 
 impl ArithmeticEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_arith_eq_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1078,7 +1318,13 @@ impl ArithmeticEqualAtom {
 impl_term! { ArithmeticNotEqualAtom }
 
 impl ArithmeticNotEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_arith_neq_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1092,7 +1338,13 @@ impl ArithmeticNotEqualAtom {
 impl_term! { ArithmeticLessThanAtom }
 
 impl ArithmeticLessThanAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_arith_lt_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1106,7 +1358,13 @@ impl ArithmeticLessThanAtom {
 impl_term! { ArithmeticLessThanEqualAtom }
 
 impl ArithmeticLessThanEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_arith_leq_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1120,7 +1378,13 @@ impl ArithmeticLessThanEqualAtom {
 impl_term! { ArithmeticGreaterThanAtom }
 
 impl ArithmeticGreaterThanAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_arith_gt_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1134,7 +1398,13 @@ impl ArithmeticGreaterThanAtom {
 impl_term! { ArithmeticGreaterThanEqualAtom }
 
 impl ArithmeticGreaterThanEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_arith_geq_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1148,7 +1418,11 @@ impl ArithmeticGreaterThanEqualAtom {
 impl_term! { ArithmeticLessThanZeroAtom }
 
 impl ArithmeticLessThanZeroAtom {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_arith_lt0_atom(term.into()) };
 
         if ok < 0 {
@@ -1162,7 +1436,11 @@ impl ArithmeticLessThanZeroAtom {
 impl_term! { ArithmeticLessThanEqualZeroAtom }
 
 impl ArithmeticLessThanEqualZeroAtom {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_arith_leq0_atom(term.into()) };
 
         if ok < 0 {
@@ -1176,7 +1454,11 @@ impl ArithmeticLessThanEqualZeroAtom {
 impl_term! { ArithmeticGreaterThanZeroAtom }
 
 impl ArithmeticGreaterThanZeroAtom {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_arith_gt0_atom(term.into()) };
 
         if ok < 0 {
@@ -1190,7 +1472,11 @@ impl ArithmeticGreaterThanZeroAtom {
 impl_term! { ArithmeticGreaterThanEqualZeroAtom }
 
 impl ArithmeticGreaterThanEqualZeroAtom {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_arith_geq0_atom(term.into()) };
 
         if ok < 0 {
@@ -1204,7 +1490,11 @@ impl ArithmeticGreaterThanEqualZeroAtom {
 impl_term! { ArithmeticEqualZeroAtom }
 
 impl ArithmeticEqualZeroAtom {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_arith_eq0_atom(term.into()) };
 
         if ok < 0 {
@@ -1218,7 +1508,11 @@ impl ArithmeticEqualZeroAtom {
 impl_term! { ArithmeticNotEqualZeroAtom }
 
 impl ArithmeticNotEqualZeroAtom {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_arith_neq0_atom(term.into()) };
 
         if ok < 0 {
@@ -1232,7 +1526,13 @@ impl ArithmeticNotEqualZeroAtom {
 impl_term! { DividesAtom }
 
 impl DividesAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_divides_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1246,7 +1546,11 @@ impl DividesAtom {
 impl_term! { IsIntegerAtom }
 
 impl IsIntegerAtom {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_is_int_atom(term.into()) };
 
         if ok < 0 {
@@ -1448,7 +1752,13 @@ impl BitVectorConstant {
 impl_term! { BitVectorAdd }
 
 impl BitVectorAdd {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvadd(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1462,7 +1772,13 @@ impl BitVectorAdd {
 impl_term! { BitVectorSub }
 
 impl BitVectorSub {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvsub(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1476,7 +1792,11 @@ impl BitVectorSub {
 impl_term! { BitVectorNeg }
 
 impl BitVectorNeg {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_bvneg(term.into()) };
 
         if ok < 0 {
@@ -1490,7 +1810,14 @@ impl BitVectorNeg {
 impl_term! { BitVectorMul }
 
 impl BitVectorMul {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
+
         let ok = yices! { yices_bvmul(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1504,7 +1831,11 @@ impl BitVectorMul {
 impl_term! { BitVectorSquare }
 
 impl BitVectorSquare {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_bvsquare(term.into()) };
 
         if ok < 0 {
@@ -1518,7 +1849,11 @@ impl BitVectorSquare {
 impl_term! { BitVectorPower }
 
 impl BitVectorPower {
-    pub fn new(base: Term, exponent: u32) -> Result<Self> {
+    pub fn new<T>(base: T, exponent: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let base: Term = base.into();
         let ok = yices! { yices_bvpower(base.into(), exponent) };
 
         if ok < 0 {
@@ -1532,11 +1867,18 @@ impl BitVectorPower {
 impl_term! { BitVectorSum }
 
 impl BitVectorSum {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_bvsum(terms.len() as u32, terms.as_ptr()) };
 
@@ -1551,11 +1893,18 @@ impl BitVectorSum {
 impl_term! { BitVectorProduct }
 
 impl BitVectorProduct {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_bvproduct(terms.len() as u32, terms.as_ptr()) };
 
@@ -1570,7 +1919,13 @@ impl BitVectorProduct {
 impl_term! { BitVectorDivision }
 
 impl BitVectorDivision {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvdiv(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1584,7 +1939,13 @@ impl BitVectorDivision {
 impl_term! { BitVectorRemainder }
 
 impl BitVectorRemainder {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvrem(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1598,7 +1959,13 @@ impl BitVectorRemainder {
 impl_term! { BitVectorSignedDivision }
 
 impl BitVectorSignedDivision {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvsdiv(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1612,7 +1979,13 @@ impl BitVectorSignedDivision {
 impl_term! { BitVectorSignedRemainder }
 
 impl BitVectorSignedRemainder {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvsrem(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1626,7 +1999,13 @@ impl BitVectorSignedRemainder {
 impl_term! { BitVectorSignedModulo }
 
 impl BitVectorSignedModulo {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvsmod(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1640,7 +2019,11 @@ impl BitVectorSignedModulo {
 impl_term! { BitVectorNot }
 
 impl BitVectorNot {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_bvnot(term.into()) };
 
         if ok < 0 {
@@ -1654,11 +2037,18 @@ impl BitVectorNot {
 impl_term! { BitVectorAnd }
 
 impl BitVectorAnd {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_bvand(terms.len() as u32, terms.as_ptr()) };
 
@@ -1673,11 +2063,18 @@ impl BitVectorAnd {
 impl_term! { BitVectorOr }
 
 impl BitVectorOr {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_bvor(terms.len() as u32, terms.as_ptr()) };
 
@@ -1692,11 +2089,18 @@ impl BitVectorOr {
 impl_term! { BitVectorXor }
 
 impl BitVectorXor {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_bvxor(terms.len() as u32, terms.as_ptr()) };
 
@@ -1711,7 +2115,13 @@ impl BitVectorXor {
 impl_term! { BitVectorNAnd }
 
 impl BitVectorNAnd {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left = left.into();
+        let right = right.into();
         let ok = yices! { yices_bvnand(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1725,7 +2135,13 @@ impl BitVectorNAnd {
 impl_term! { BitVectorNOr }
 
 impl BitVectorNOr {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left = left.into();
+        let right = right.into();
         let ok = yices! { yices_bvnor(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1739,7 +2155,13 @@ impl BitVectorNOr {
 impl_term! { BitVectorXNor }
 
 impl BitVectorXNor {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left = left.into();
+        let right = right.into();
         let ok = yices! { yices_bvxnor(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1753,7 +2175,11 @@ impl BitVectorXNor {
 impl_term! { BitVectorShiftLeftFill0 }
 
 impl BitVectorShiftLeftFill0 {
-    pub fn new(left: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let left = term.into();
         let ok = yices! { yices_shift_left0(left.into(), n) };
 
         if ok < 0 {
@@ -1767,7 +2193,11 @@ impl BitVectorShiftLeftFill0 {
 impl_term! { BitVectorShiftLeftFill1 }
 
 impl BitVectorShiftLeftFill1 {
-    pub fn new(left: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let left: Term = term.into();
         let ok = yices! { yices_shift_left1(left.into(), n) };
 
         if ok < 0 {
@@ -1781,7 +2211,11 @@ impl BitVectorShiftLeftFill1 {
 impl_term! { BitVectorShiftRightFill0 }
 
 impl BitVectorShiftRightFill0 {
-    pub fn new(left: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let left: Term = term.into();
         let ok = yices! { yices_shift_right0(left.into(), n) };
 
         if ok < 0 {
@@ -1795,7 +2229,12 @@ impl BitVectorShiftRightFill0 {
 impl_term! { BitVectorShiftRightFill1 }
 
 impl BitVectorShiftRightFill1 {
-    pub fn new(left: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let left: Term = term.into();
+
         let ok = yices! { yices_shift_right1(left.into(), n) };
 
         if ok < 0 {
@@ -1809,7 +2248,11 @@ impl BitVectorShiftRightFill1 {
 impl_term! { BitVectorArithmeticShiftRightConstant }
 
 impl BitVectorArithmeticShiftRightConstant {
-    pub fn new(left: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let left: Term = term.into();
         let ok = yices! { yices_ashift_right(left.into(), n) };
 
         if ok < 0 {
@@ -1823,7 +2266,11 @@ impl BitVectorArithmeticShiftRightConstant {
 impl_term! { BitVectorRotateLeft }
 
 impl BitVectorRotateLeft {
-    pub fn new(left: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let left: Term = term.into();
         let ok = yices! { yices_rotate_left(left.into(), n) };
 
         if ok < 0 {
@@ -1837,7 +2284,11 @@ impl BitVectorRotateLeft {
 impl_term! { BitVectorRotateRight }
 
 impl BitVectorRotateRight {
-    pub fn new(left: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let left: Term = term.into();
         let ok = yices! { yices_rotate_right(left.into(), n) };
 
         if ok < 0 {
@@ -1851,7 +2302,13 @@ impl BitVectorRotateRight {
 impl_term! { BitVectorShiftLeft }
 
 impl BitVectorShiftLeft {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvshl(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1865,7 +2322,13 @@ impl BitVectorShiftLeft {
 impl_term! { BitVectorShiftRight }
 
 impl BitVectorShiftRight {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvlshr(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1879,7 +2342,13 @@ impl BitVectorShiftRight {
 impl_term! { BitVectorArithmeticShiftRight }
 
 impl BitVectorArithmeticShiftRight {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvashr(left.into(), right.into()) };
 
         if ok < 0 {
@@ -1893,7 +2362,12 @@ impl BitVectorArithmeticShiftRight {
 impl_term! { BitVectorExtract }
 
 impl BitVectorExtract {
-    pub fn new(term: Term, lower: u32, upper: u32) -> Result<Self> {
+    pub fn new<T>(term: T, lower: u32, upper: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
+
         let ok = yices! { yices_bvextract(term.into(), lower, upper) };
 
         if ok < 0 {
@@ -1907,7 +2381,11 @@ impl BitVectorExtract {
 impl_term! { BitVectorBitExtract }
 
 impl BitVectorBitExtract {
-    pub fn new(term: Term, bit: u32) -> Result<Self> {
+    pub fn new<T>(term: T, bit: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_bitextract(term.into(), bit) };
 
         if ok < 0 {
@@ -1921,11 +2399,18 @@ impl BitVectorBitExtract {
 impl_term! { BitVectorConcatenate }
 
 impl BitVectorConcatenate {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_bvconcat(terms.len() as u32, terms.as_ptr()) };
 
@@ -1940,7 +2425,11 @@ impl BitVectorConcatenate {
 impl_term! { BitVectorRepeat }
 
 impl BitVectorRepeat {
-    pub fn new(term: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_bvrepeat(term.into(), n) };
 
         if ok < 0 {
@@ -1954,7 +2443,11 @@ impl BitVectorRepeat {
 impl_term! { BitVectorSignExtend }
 
 impl BitVectorSignExtend {
-    pub fn new(term: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_sign_extend(term.into(), n) };
 
         if ok < 0 {
@@ -1968,7 +2461,12 @@ impl BitVectorSignExtend {
 impl_term! { BitVectorZeroExtend }
 
 impl BitVectorZeroExtend {
-    pub fn new(term: Term, n: u32) -> Result<Self> {
+    pub fn new<T>(term: T, n: u32) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
+
         let ok = yices! { yices_zero_extend(term.into(), n) };
 
         if ok < 0 {
@@ -1982,7 +2480,11 @@ impl BitVectorZeroExtend {
 impl_term! { BitVectorReduceAnd }
 
 impl BitVectorReduceAnd {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_redand(term.into()) };
 
         if ok < 0 {
@@ -1996,7 +2498,11 @@ impl BitVectorReduceAnd {
 impl_term! { BitVectorReduceOr }
 
 impl BitVectorReduceOr {
-    pub fn new(term: Term) -> Result<Self> {
+    pub fn new<T>(term: T) -> Result<Self>
+    where
+        T: Into<Term>,
+    {
+        let term: Term = term.into();
         let ok = yices! { yices_redor(term.into()) };
 
         if ok < 0 {
@@ -2010,7 +2516,13 @@ impl BitVectorReduceOr {
 impl_term! { BitVectorReduceEqual }
 
 impl BitVectorReduceEqual {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_redcomp(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2024,11 +2536,18 @@ impl BitVectorReduceEqual {
 impl_term! { BitVectorArray }
 
 impl BitVectorArray {
-    pub fn new<I>(terms: I) -> Result<Self>
+    pub fn new<I, T>(terms: I) -> Result<Self>
     where
-        I: IntoIterator<Item = Term>,
+        I: IntoIterator<Item = T>,
+        T: Into<Term>,
     {
-        let terms: Vec<_> = terms.into_iter().map(|t| t.into()).collect();
+        let terms: Vec<_> = terms
+            .into_iter()
+            .map(|t| {
+                let t: Term = t.into();
+                t.into()
+            })
+            .collect();
 
         let ok = yices! { yices_bvarray(terms.len() as u32, terms.as_ptr()) };
 
@@ -2043,7 +2562,13 @@ impl BitVectorArray {
 impl_term! { BitVectorEqualAtom }
 
 impl BitVectorEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bveq_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2057,7 +2582,13 @@ impl BitVectorEqualAtom {
 impl_term! { BitVectorNotEqualAtom }
 
 impl BitVectorNotEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvneq_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2071,7 +2602,14 @@ impl BitVectorNotEqualAtom {
 impl_term! { BitVectorLessThanAtom }
 
 impl BitVectorLessThanAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
+
         let ok = yices! { yices_bvlt_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2085,7 +2623,14 @@ impl BitVectorLessThanAtom {
 impl_term! { BitVectorLessThanEqualAtom }
 
 impl BitVectorLessThanEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
+
         let ok = yices! { yices_bvle_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2099,7 +2644,13 @@ impl BitVectorLessThanEqualAtom {
 impl_term! { BitVectorGreaterThanAtom }
 
 impl BitVectorGreaterThanAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvgt_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2113,7 +2664,14 @@ impl BitVectorGreaterThanAtom {
 impl_term! { BitVectorGreaterThanEqualAtom }
 
 impl BitVectorGreaterThanEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
+
         let ok = yices! { yices_bvge_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2127,7 +2685,14 @@ impl BitVectorGreaterThanEqualAtom {
 impl_term! { BitVectorSignedLessThanAtom }
 
 impl BitVectorSignedLessThanAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
+
         let ok = yices! { yices_bvslt_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2141,7 +2706,14 @@ impl BitVectorSignedLessThanAtom {
 impl_term! { BitVectorSignedLessThanEqualAtom }
 
 impl BitVectorSignedLessThanEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
+
         let ok = yices! { yices_bvsle_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2155,7 +2727,13 @@ impl BitVectorSignedLessThanEqualAtom {
 impl_term! { BitVectorSignedGreaterThanAtom }
 
 impl BitVectorSignedGreaterThanAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left: Term = left.into();
+        let right: Term = right.into();
         let ok = yices! { yices_bvsgt_atom(left.into(), right.into()) };
 
         if ok < 0 {
@@ -2169,7 +2747,14 @@ impl BitVectorSignedGreaterThanAtom {
 impl_term! { BitVectorSignedGreaterThanEqualAtom }
 
 impl BitVectorSignedGreaterThanEqualAtom {
-    pub fn new(left: Term, right: Term) -> Result<Self> {
+    pub fn new<T, U>(left: T, right: U) -> Result<Self>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let left = left.into();
+        let right = right.into();
+
         let ok = yices! { yices_bvsge_atom(left.into(), right.into()) };
 
         if ok < 0 {
