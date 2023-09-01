@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          dnf update && dnf -y install \
+          dnf -y update && dnf -y install \
             clang \
             cmake \
             make \
@@ -39,7 +39,7 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          brew install \
+          brew -y install \
             gperf \
             autoconf \
             make
