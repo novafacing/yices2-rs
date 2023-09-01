@@ -1,16 +1,10 @@
 # Yices2
 
-Low and high-level Rust bindings to the [Yices2](https://yices.csl.sri.com) SMT solver.
+High level bindings to the Yices2 SMT solver.
 
-- [Yices2](#yices2)
-  - [Example](#example)
-    - [Linear Real Arithmetic](#linear-real-arithmetic)
-    - [BitVectors](#bitvectors)
-  - [Usage](#usage)
-  - [Features](#features)
-  - [Notes](#notes)
+## Examples
 
-## Example
+Some examples to demonstrate usage of this library.
 
 ### Linear Real Arithmetic
 
@@ -20,19 +14,19 @@ use yices2::prelude::*;
 fn main() -> Result<(), Error> {
   let config = Config::with_defaults_for_logics([Logic::QF_LRA])?;
   let ctx = Context::with_config(&config)?;
-  let x = Uninterpreted::with_name(RealType::new()?.into(), "x")?;
-  let y = Uninterpreted::with_name(RealType::new()?.into(), "y")?;
-  let t1 = Add::new(x.into(), y.into())?;
-  let t2 = ArithmeticGreaterThanAtom::new(t1.into(), ArithmeticConstant::zero()?.into())?;
-  let t3 = Or::new([
-      ArithmeticLessThanAtom::new(x.into(), ArithmeticConstant::zero()?.into())?.into(),
-      ArithmeticLessThanAtom::new(y.into(), ArithmeticConstant::zero()?.into())?.into(),
-  ])?;
-  ctx.assert([t2.into(), t3.into()])?;
+  let x = Uninterpreted::with_name(RealType::new()?, "x")?;
+  let y = Uninterpreted::with_name(RealType::new()?, "y")?;
+  let t1 = Add::new(x, y)?;
+  let t2: Term = ArithmeticGreaterThanAtom::new(t1, ArithmeticConstant::zero()?)?.into();
+  let t3: Term = Or::new([
+      ArithmeticLessThanAtom::new(x, ArithmeticConstant::zero()?)?,
+      ArithmeticLessThanAtom::new(y, ArithmeticConstant::zero()?)?,
+  ])?.into();
+  ctx.assert([t2, t3])?;
   let status = ctx.check()?;
   assert_eq!(status, Status::STATUS_SAT);
-  let xv = ctx.model()?.get_double(&x.into())?;
-  let yv = ctx.model()?.get_double(&y.into())?;
+  let xv = ctx.model()?.get_double(x)?;
+  let yv = ctx.model()?.get_double(y)?;
   assert_eq!(xv, 2.0);
   assert_eq!(yv, -1.0);
 
@@ -50,15 +44,15 @@ fn main() -> Result<(), Error> {
   let ctx = Context::with_config(&config)?;
   let bv = BitVectorType::new(32)?;
   let bvc = BitVectorConstant::from_hex_with_name("00000000", "c")?;
-  let x = Uninterpreted::with_name(bv.into(), "x")?;
-  let y = Uninterpreted::with_name(bv.into(), "y")?;
-  let a1 = BitVectorSignedGreaterThanAtom::new(x.into(), bvc.into())?;
-  let a2 = BitVectorSignedGreaterThanAtom::new(y.into(), bvc.into())?;
-  let a3 = BitVectorSignedLessThanAtom::new(
-      BitVectorAdd::new(x.into(), y.into())?.into(),
-      x.into(),
-  )?;
-  ctx.assert([a1.into(), a2.into(), a3.into()])?;
+  let x = Uninterpreted::with_name(bv, "x")?;
+  let y = Uninterpreted::with_name(bv, "y")?;
+  let a1: Term = BitVectorSignedGreaterThanAtom::new(x, bvc)?.into();
+  let a2: Term = BitVectorSignedGreaterThanAtom::new(y, bvc)?.into();
+  let a3: Term = BitVectorSignedLessThanAtom::new(
+      BitVectorAdd::new(x, y)?,
+      x,
+  )?.into();
+  ctx.assert([a1, a2, a3])?;
 
   assert_eq!(ctx.check()?, Status::STATUS_SAT);
 
