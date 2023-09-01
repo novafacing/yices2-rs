@@ -9,8 +9,8 @@
 // NOTE: Allows the use of the ::block crate
 #![allow(unused_imports)]
 
-#[cfg(features = "use-generated")]
+#[cfg(feature = "use-generated")]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-#[cfg(not(features = "use-generated"))]
+#[cfg(not(feature = "use-generated"))]
 include!("bindings.rs");
