@@ -2,8 +2,8 @@ name: Tests
 on: [push, pull_request]
 
 jobs:
-  test:
-    name: cargo test
+  test_ubuntu:
+    name: Test (Ubuntu)
     runs-on: ubuntu-latest
     steps:
       - name: Install Dependencies
@@ -14,6 +14,35 @@ jobs:
             build-essential \
             autoconf \
             gperf
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
+  test_fedora:
+    name: Test (Fedora)
+    runs-on: ubuntu-latest
+    container: fedora
+    steps:
+      - name: Install Dependencies
+        run: |
+          dnf update && dnf -y install \
+            clang \
+            cmake \
+            make \
+            autoconf \
+            gperf
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
+  test_macos:
+    name: Test (MacOS)
+    runs-on: macos-latest
+    steps:
+      - name: Install Dependencies
+        run: |
+          brew install \
+            gperf \
+            autoconf \
+            make
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test
