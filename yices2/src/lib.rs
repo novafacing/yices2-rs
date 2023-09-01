@@ -71,7 +71,7 @@
 //! Or by adding this line to your `Cargo.toml`:
 //!
 //! ```toml
-//! yices2 = { version = "2.6.4" }
+//! yices2 = { version = "2.6.4-patch.1" }
 //! ```
 //!
 //! ## Features
@@ -81,7 +81,7 @@
 //! you can use the `default-features = false` flag in your `Cargo.toml`.
 //!
 //! ```toml
-//! yices2 = { version = "2.6.4", default-features = false }
+//! yices2 = { version = "2.6.4-patch.1", default-features = false }
 //! ```
 //!
 //! ## Notes

@@ -68,10 +68,12 @@ You can add this crate to your project by running:
 cargo add yices2
 ```
 
-Or by adding this line to your `Cargo.toml`:
+Or by adding this line to your `Cargo.toml` (note the patch pseudo-prerelease flag. In
+order to maintain version number compatibility with Yices2, changes to the `sys` crate
+will be made available under linearly increasing patch versions):
 
 ```toml
-yices2 = { version = "2.6.4" }
+yices2 = { version = "2.6.4-patch.1" }
 ```
 
 ## Features
@@ -81,7 +83,7 @@ initialization and `yices_exit` at program exit. If you'd like to disable this b
 you can use the `default-features = false` flag in your `Cargo.toml`.
 
 ```toml
-yices2 = { version = "2.6.4", default-features = false }
+yices2 = { version = "2.6.4-patch.1", default-features = false }
 ```
 
 ## Notes

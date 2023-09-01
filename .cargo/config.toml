@@ -1,2 +1,4 @@
 [env]
+# NOTE: Required for this crate, because all the tests are running Yices2 code that cannot
+# be safely threaded or run in parallel
 RUST_TEST_THREADS = "1"
