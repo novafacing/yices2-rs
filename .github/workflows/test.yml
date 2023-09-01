@@ -39,7 +39,7 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          brew -y install \
+          brew install \
             gperf \
             autoconf \
             make
